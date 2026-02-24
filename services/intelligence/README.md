@@ -1,0 +1,1 @@
+AI and LLM layer. Receives parsed documents from the ingestion service, generates embeddings via OpenAI and stores them in pgvector, and uses the Claude API to produce plain-English summaries and investment insights.

@@ -1,0 +1,1 @@
+Background job queue (BullMQ or Celery) for scheduled tasks: daily portfolio value syncs from brokerages, new filing detection and ingestion, and embedding generation for newly indexed documents. Redis backs the queue and caches computed portfolio values.

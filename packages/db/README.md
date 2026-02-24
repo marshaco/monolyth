@@ -1,0 +1,1 @@
+Shared database package. Contains the PostgreSQL schema, migrations, and database client used across apps and services. Includes the pgvector extension setup for semantic search over financial filings.

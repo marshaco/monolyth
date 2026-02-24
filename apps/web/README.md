@@ -1,0 +1,1 @@
+Next.js frontend using the App Router. Renders the portfolio dashboard, holdings views, AI insight feed, and filing search UI. Built with Tailwind CSS, shadcn/ui, and Recharts/Tremor for data visualisations.
