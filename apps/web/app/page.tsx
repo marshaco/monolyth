@@ -58,15 +58,15 @@ export default function Home() {
   if (!ready) return null
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex h-screen bg-background text-foreground">
       <HoldingsSidebar tickers={tickers} onChange={handleTickersChange} />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-base font-semibold text-zinc-100">News Feed</h1>
+          <h1 className="text-base font-semibold text-foreground">News Feed</h1>
           {tickers.length > 0 && !loading && (
             <button
               onClick={() => fetchNews(tickers)}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               Refresh
             </button>

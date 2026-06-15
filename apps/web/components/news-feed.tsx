@@ -25,7 +25,7 @@ function formatDate(dateStr: string): string {
 export default function NewsFeed({ articles, loading, tickers }: Props) {
   if (tickers.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-zinc-600 gap-2">
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
         <p className="text-sm">Add a ticker on the left to see news for your holdings.</p>
       </div>
     )
@@ -35,10 +35,10 @@ export default function NewsFeed({ articles, loading, tickers }: Props) {
     return (
       <div className="flex flex-col gap-3 max-w-2xl">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 animate-pulse">
-            <div className="h-3 bg-zinc-800 rounded w-24 mb-3" />
-            <div className="h-4 bg-zinc-800 rounded w-full mb-2" />
-            <div className="h-4 bg-zinc-800 rounded w-3/4" />
+          <div key={i} className="bg-card border border-border rounded-lg p-4 animate-pulse">
+            <div className="h-3 bg-muted rounded w-24 mb-3" />
+            <div className="h-4 bg-muted rounded w-full mb-2" />
+            <div className="h-4 bg-muted rounded w-3/4" />
           </div>
         ))}
       </div>
@@ -47,7 +47,7 @@ export default function NewsFeed({ articles, loading, tickers }: Props) {
 
   if (articles.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-zinc-600">
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
         <p className="text-sm">No news found for your holdings.</p>
       </div>
     )
@@ -61,26 +61,26 @@ export default function NewsFeed({ articles, loading, tickers }: Props) {
           href={article.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="group flex flex-col gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-lg p-4 transition-colors"
+          className="group flex flex-col gap-2 bg-card border border-border hover:border-border/60 rounded-lg p-4 transition-colors"
         >
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
-              className="text-xs border-zinc-700 text-zinc-400 py-0 h-5"
+              className="text-xs py-0 h-5"
             >
               {article.ticker}
             </Badge>
-            <span className="text-xs text-zinc-500">{article.source}</span>
-            <span className="text-xs text-zinc-700">·</span>
-            <span className="text-xs text-zinc-500">{formatDate(article.pubDate)}</span>
+            <span className="text-xs text-muted-foreground">{article.source}</span>
+            <span className="text-xs text-muted-foreground/40">·</span>
+            <span className="text-xs text-muted-foreground">{formatDate(article.pubDate)}</span>
           </div>
           <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-medium text-zinc-200 group-hover:text-white leading-snug transition-colors">
+            <p className="text-sm font-medium text-card-foreground group-hover:text-foreground leading-snug transition-colors">
               {article.title}
             </p>
             <ExternalLink
               size={13}
-              className="flex-shrink-0 mt-0.5 text-zinc-600 group-hover:text-zinc-400 transition-colors"
+              className="flex-shrink-0 mt-0.5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors"
             />
           </div>
         </a>
