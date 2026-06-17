@@ -113,30 +113,5 @@ cd apps/web && npm run dev
 cd services/sync && celery -A worker worker --loglevel=info
 ```
 
-## Environment Variables
 
-> Document all required env vars here as they are added.
-
-```
-# Database
-DATABASE_URL=postgresql+psycopg2://...
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# Auth
-CLERK_SECRET_KEY=...
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
-
-# LLM + Embeddings
-ANTHROPIC_API_KEY=...
-OPENAI_API_KEY=...
-
-# Data Sources
-POLYGON_API_KEY=...
-ALPHA_VANTAGE_API_KEY=...
-
-# Portfolio
-PLAID_CLIENT_ID=...
-PLAID_SECRET=...
-```
+At the end of each coding stage, for when the code is ready to be pushed to GitHub, you should provide a summary of the problem that needed to be fixed, the thing that was actually fixed, the changes that were made, and what tests were conducted to validate that the code works for the fix. It should follow a consistent format of bold heading and bullet points answering each question.
