@@ -1,3 +1,5 @@
+'use client'
+
 import { Badge } from '@/components/ui/badge'
 import { ExternalLink } from 'lucide-react'
 import type { Article } from '@/app/page'
@@ -25,7 +27,7 @@ function formatDate(dateStr: string): string {
 export default function NewsFeed({ articles, loading, tickers }: Props) {
   if (tickers.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
         <p className="text-sm">Add a ticker on the left to see news for your holdings.</p>
       </div>
     )
@@ -33,12 +35,20 @@ export default function NewsFeed({ articles, loading, tickers }: Props) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-3 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="bg-card border border-border rounded-lg p-4 animate-pulse">
-            <div className="h-3 bg-muted rounded w-24 mb-3" />
-            <div className="h-4 bg-muted rounded w-full mb-2" />
-            <div className="h-4 bg-muted rounded w-3/4" />
+          <div key={i} className="bg-card border border-border rounded-xl overflow-hidden animate-pulse">
+            <div className="aspect-video bg-muted" />
+            <div className="p-4 flex flex-col gap-3">
+              <div className="h-4 bg-muted rounded w-full" />
+              <div className="h-4 bg-muted rounded w-4/5" />
+              <div className="h-3 bg-muted rounded w-3/4" />
+              <div className="h-3 bg-muted rounded w-1/2" />
+              <div className="flex gap-2 mt-2">
+                <div className="h-5 w-12 bg-muted rounded" />
+                <div className="h-3 w-16 bg-muted rounded self-center" />
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -54,34 +64,57 @@ export default function NewsFeed({ articles, loading, tickers }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-2 max-w-2xl">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {articles.map((article, i) => (
         <a
-          key={i}
+          key={article.link}
           href={article.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="group flex flex-col gap-2 bg-card border border-border hover:border-border/60 rounded-lg p-4 transition-colors"
+          className="group flex flex-col bg-card border border-border hover:border-primary/40 rounded-xl overflow-hidden transition-colors"
+          style={{
+            animation: 'fade-slide-in 0.35s ease-out both',
+            animationDelay: `${i * 55}ms`,
+          }}
         >
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="text-xs py-0 h-5"
-            >
-              {article.ticker}
-            </Badge>
-            <span className="text-xs text-muted-foreground">{article.source}</span>
-            <span className="text-xs text-muted-foreground/40">·</span>
-            <span className="text-xs text-muted-foreground">{formatDate(article.pubDate)}</span>
+          {/* Image / gradient header */}
+          <div className="relative aspect-video bg-gradient-to-br from-primary/20 via-primary/10 to-muted overflow-hidden flex-shrink-0">
+            {article.imageUrl && (
+              <img
+                src={article.imageUrl}
+                alt=""
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={(e) => { e.currentTarget.style.display = 'none' }}
+              />
+            )}
           </div>
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-medium text-card-foreground group-hover:text-foreground leading-snug transition-colors">
+
+          {/* Body */}
+          <div className="flex flex-col gap-2 p-4 flex-1">
+            <p className="text-sm font-semibold text-card-foreground group-hover:text-foreground leading-snug line-clamp-2 transition-colors">
               {article.title}
             </p>
-            <ExternalLink
-              size={13}
-              className="flex-shrink-0 mt-0.5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors"
-            />
+
+            {article.blurb && (
+              <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                {article.blurb}
+              </p>
+            )}
+
+            {/* Metadata row */}
+            <div className="flex items-center gap-2 mt-auto pt-3 flex-wrap">
+              <Badge variant="outline" className="text-xs py-0 h-5 flex-shrink-0">
+                {article.ticker}
+              </Badge>
+              <span className="text-xs text-muted-foreground truncate">{article.source}</span>
+              <span className="text-xs text-muted-foreground/40">·</span>
+              <span className="text-xs text-muted-foreground">{formatDate(article.pubDate)}</span>
+              <ExternalLink
+                size={11}
+                className="ml-auto flex-shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+              />
+            </div>
           </div>
         </a>
       ))}

@@ -6,9 +6,25 @@ type FeedItem = {
   link?: string
   pubDate?: string
   contentSnippet?: string
+  enclosure?: { url?: string; type?: string }
+  mediaContent?: { $?: { url?: string; medium?: string } }
 }
 
-const parser = new Parser<object, FeedItem>()
+type ArticleResult = {
+  ticker: string
+  title: string
+  link: string
+  pubDate: string
+  source: string
+  blurb?: string
+  imageUrl?: string
+}
+
+const parser = new Parser<object, FeedItem>({
+  customFields: {
+    item: [['media:content', 'mediaContent']],
+  },
+})
 
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('tickers') ?? ''
@@ -25,19 +41,23 @@ export async function GET(req: NextRequest) {
     tickers.map(async (ticker) => {
       const url = `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${ticker}&region=US&lang=en-US`
       const feed = await parser.parseURL(url)
-      return feed.items.map((item) => ({
+      return feed.items.map((item): ArticleResult => ({
         ticker,
         title: item.title ?? '',
         link: item.link ?? '',
         pubDate: item.pubDate ?? '',
         source: extractDomain(item.link ?? ''),
+        blurb: item.contentSnippet?.trim() || undefined,
+        imageUrl:
+          item.mediaContent?.$?.url ??
+          (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined),
       }))
     })
   )
 
   const seen = new Set<string>()
   const articles = results
-    .filter((r): r is PromiseFulfilledResult<ReturnType<typeof toArticle>[]> => r.status === 'fulfilled')
+    .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
     .flatMap((r) => r.value)
     .filter((a) => {
       if (!a.link || seen.has(a.link)) return false
@@ -54,15 +74,5 @@ function extractDomain(url: string): string {
     return new URL(url).hostname.replace(/^www\./, '')
   } catch {
     return ''
-  }
-}
-
-function toArticle(item: FeedItem, ticker: string) {
-  return {
-    ticker,
-    title: item.title ?? '',
-    link: item.link ?? '',
-    pubDate: item.pubDate ?? '',
-    source: extractDomain(item.link ?? ''),
   }
 }

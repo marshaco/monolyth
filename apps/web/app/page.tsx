@@ -10,6 +10,8 @@ export type Article = {
   link: string
   pubDate: string
   source: string
+  blurb?: string
+  imageUrl?: string
 }
 
 const STORAGE_KEY = 'monolyth_holdings'
