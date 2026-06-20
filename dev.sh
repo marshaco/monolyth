@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -24,16 +24,25 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# ── Kill stale processes from previous runs ──────────────────────────────────
+pkill -f "next dev" 2>/dev/null || true
+pkill -f "uvicorn main:app" 2>/dev/null || true
+pkill -f "celery -A worker" 2>/dev/null || true
+sleep 1
+
 # ── 1. Infrastructure (Docker) ──────────────────────────────────────────────
 log "Starting infrastructure (Docker)..."
-docker compose -f "$ROOT/infra/docker-compose.yml" up -d
-ok "Infrastructure up."
+if docker compose -f "$ROOT/infra/docker-compose.yml" up -d; then
+  ok "Infrastructure up."
+else
+  err "Docker failed to start — is Docker running?"
+fi
 
 # ── 2. FastAPI backend ───────────────────────────────────────────────────────
 API_DIR="$ROOT/apps/api"
 if [ -f "$API_DIR/main.py" ]; then
   log "Starting FastAPI backend..."
-  (cd "$API_DIR" && uvicorn main:app --reload --port 8000 2>&1 | sed "s/^/$(echo -e "${YELLOW}[api]${NC}") /") &
+  (cd "$API_DIR" && uvicorn main:app --reload --port 8000 2>&1 || true) | sed "s/^/$(echo -e "${YELLOW}[api]${NC}") /" &
   PIDS+=($!)
   ok "FastAPI started (PID ${PIDS[-1]})."
 else
@@ -44,7 +53,7 @@ fi
 SYNC_DIR="$ROOT/services/sync"
 if [ -f "$SYNC_DIR/worker.py" ]; then
   log "Starting Celery worker..."
-  (cd "$SYNC_DIR" && celery -A worker worker --loglevel=info 2>&1 | sed "s/^/$(echo -e "${CYAN}[celery]${NC}") /") &
+  (cd "$SYNC_DIR" && celery -A worker worker --loglevel=info 2>&1 || true) | sed "s/^/$(echo -e "${CYAN}[celery]${NC}") /" &
   PIDS+=($!)
   ok "Celery started (PID ${PIDS[-1]})."
 else
@@ -55,11 +64,11 @@ fi
 WEB_DIR="$ROOT/apps/web"
 if [ -f "$WEB_DIR/package.json" ]; then
   log "Starting Next.js frontend..."
-  (cd "$WEB_DIR" && npm run dev 2>&1 | sed "s/^/$(echo -e "${GREEN}[web]${NC}") /") &
+  (cd "$WEB_DIR" && npm run dev 2>&1 || true) | sed "s/^/$(echo -e "${GREEN}[web]${NC}") /" &
   PIDS+=($!)
   ok "Next.js started (PID ${PIDS[-1]})."
 else
-  warn "apps/web/package.json not found — skipping web."
+  err "apps/web/package.json not found — cannot start frontend."
 fi
 
 echo ""
