@@ -10,14 +10,6 @@ type FeedItem = {
   mediaContent?: { $?: { url?: string; medium?: string } }
 }
 
-type ParsedItem = {
-  title: string
-  link: string
-  pubDate: string
-  blurb?: string
-  imageUrl?: string
-}
-
 type ArticleResult = {
   ticker: string
   title: string
@@ -32,26 +24,26 @@ const parser = new Parser<object, FeedItem>({
   customFields: { item: [['media:content', 'mediaContent']] },
 })
 
-// General finance/markets RSS feeds from reputable outlets.
-// These are fetched once per request (cached), then filtered by ticker mention —
-// no reliance on Yahoo Finance's unofficial per-ticker API.
-const FEEDS = [
-  'https://feeds.reuters.com/reuters/businessNews',
-  'https://feeds.reuters.com/reuters/technologyNews',
-  'https://www.cnbc.com/id/100003114/device/rss/rss.html',    // Top News
-  'https://www.cnbc.com/id/15839135/device/rss/rss.html',     // US Markets
-  'https://www.cnbc.com/id/19854910/device/rss/rss.html',     // Technology
-  'https://feeds.marketwatch.com/marketwatch/topstories/',
-  'https://feeds.marketwatch.com/marketwatch/marketpulse/',
-  'https://www.barrons.com/xml/rss/3_7514.xml',
-  'https://www.investopedia.com/feedbuilder/feed/getfeed/?feedName=rss_top_headlines',
-]
-
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
   'of', 'is', 'are', 'was', 'were', 'be', 'by', 'its', 'it', 'as',
   'with', 'has', 'have', 'had', 'says', 'said', 'after', 'over',
 ])
+
+// Google News RSS returns results from across the web (FT, WSJ, Reuters, Bloomberg,
+// Barron's, etc.) for any search query — no API key, no pre-chosen outlet list.
+function googleNewsUrl(ticker: string) {
+  const q = encodeURIComponent(`${ticker} stock`)
+  return `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`
+}
+
+// Google News titles are formatted "Article headline - Source Name".
+// Split on the last " - " to recover the clean title and outlet name.
+function parseTitle(raw: string): { title: string; source: string } {
+  const idx = raw.lastIndexOf(' - ')
+  if (idx === -1) return { title: raw, source: '' }
+  return { title: raw.slice(0, idx), source: raw.slice(idx + 3) }
+}
 
 export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('tickers') ?? ''
@@ -62,78 +54,55 @@ export async function GET(req: NextRequest) {
 
   if (tickers.length === 0) return NextResponse.json({ articles: [] })
 
-  // Fetch all feeds in parallel; each is cached for 10 minutes
-  const results = await Promise.allSettled(FEEDS.map(fetchFeed))
-
-  const allItems = results
-    .filter((r): r is PromiseFulfilledResult<ParsedItem[]> => r.status === 'fulfilled')
-    .flatMap((r) => r.value)
-    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
+  const results = await Promise.allSettled(
+    tickers.map((ticker) => fetchFeed(googleNewsUrl(ticker), ticker))
+  )
 
   const seenLinks = new Set<string>()
   const seenTitleKeys = new Set<string>()
-  const articles: ArticleResult[] = []
 
-  for (const item of allItems) {
-    if (!item.link || seenLinks.has(item.link)) continue
-    seenLinks.add(item.link)
-
-    const key = titleKey(item.title)
-    if (key && seenTitleKeys.has(key)) continue
-    if (key) seenTitleKeys.add(key)
-
-    // Tag with the first ticker this article mentions
-    const matchedTicker = tickers.find((t) => mentionsTicker(item, t))
-    if (!matchedTicker) continue
-
-    articles.push({
-      ticker: matchedTicker,
-      title: item.title,
-      link: item.link,
-      pubDate: item.pubDate,
-      source: extractDomain(item.link),
-      blurb: item.blurb,
-      imageUrl: item.imageUrl,
+  const articles = results
+    .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value)
+    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
+    .filter((a) => {
+      if (!a.link || seenLinks.has(a.link)) return false
+      seenLinks.add(a.link)
+      const key = titleKey(a.title)
+      if (key && seenTitleKeys.has(key)) return false
+      if (key) seenTitleKeys.add(key)
+      return true
     })
-  }
 
   return NextResponse.json({ articles })
 }
 
-async function fetchFeed(url: string): Promise<ParsedItem[]> {
+async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> {
   try {
     const res = await fetch(url, {
       next: { revalidate: 600 },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RSS reader)' },
     })
     if (!res.ok) return []
     const xml = await res.text()
     const feed = await parser.parseString(xml)
-    return feed.items.map((item): ParsedItem => ({
-      title: item.title ?? '',
-      link: item.link ?? '',
-      pubDate: item.pubDate ?? new Date().toISOString(),
-      blurb: item.contentSnippet?.trim() || undefined,
-      imageUrl:
-        item.mediaContent?.$?.url ??
-        (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined),
-    }))
+    return feed.items.map((item): ArticleResult => {
+      const { title, source } = parseTitle(item.title ?? '')
+      return {
+        ticker,
+        title,
+        link: item.link ?? '',
+        pubDate: item.pubDate ?? new Date().toISOString(),
+        source,
+        blurb: item.contentSnippet?.trim() || undefined,
+        imageUrl:
+          item.mediaContent?.$?.url ??
+          (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined),
+      }
+    })
   } catch {
     return []
-  }
-}
-
-// Match "$AAPL", "(AAPL)", "AAPL:" and plain "AAPL" as a whole word
-function mentionsTicker(item: ParsedItem, ticker: string): boolean {
-  const haystack = `${item.title} ${item.blurb ?? ''}`
-  return new RegExp(`\\$?\\b${ticker}\\b`, 'i').test(haystack)
-}
-
-function extractDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return ''
   }
 }
 
