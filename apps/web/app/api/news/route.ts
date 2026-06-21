@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Parser from 'rss-parser'
 
-type FeedItem = {
-  title?: string
-  link?: string
-  pubDate?: string
-  contentSnippet?: string
-  enclosure?: { url?: string; type?: string }
-  mediaContent?: { $?: { url?: string; medium?: string } }
+type PolygonArticle = {
+  title: string
+  article_url: string
+  image_url?: string
+  description?: string
+  published_utc: string
+  tickers?: string[]
+  publisher: {
+    name: string
+    favicon_url?: string
+  }
+}
+
+type PolygonResponse = {
+  results: PolygonArticle[]
+  status: string
+  next_url?: string
 }
 
 type ArticleResult = {
@@ -20,32 +29,18 @@ type ArticleResult = {
   imageUrl?: string
 }
 
-const parser = new Parser<object, FeedItem>({
-  customFields: { item: [['media:content', 'mediaContent']] },
-})
-
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
   'of', 'is', 'are', 'was', 'were', 'be', 'by', 'its', 'it', 'as',
   'with', 'has', 'have', 'had', 'says', 'said', 'after', 'over',
 ])
 
-// Google News RSS returns results from across the web (FT, WSJ, Reuters, Bloomberg,
-// Barron's, etc.) for any search query — no API key, no pre-chosen outlet list.
-function googleNewsUrl(ticker: string) {
-  const q = encodeURIComponent(`${ticker} stock`)
-  return `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`
-}
-
-// Google News titles are formatted "Article headline - Source Name".
-// Split on the last " - " to recover the clean title and outlet name.
-function parseTitle(raw: string): { title: string; source: string } {
-  const idx = raw.lastIndexOf(' - ')
-  if (idx === -1) return { title: raw, source: '' }
-  return { title: raw.slice(0, idx), source: raw.slice(idx + 3) }
-}
-
 export async function GET(req: NextRequest) {
+  const apiKey = process.env.POLYGON_API_KEY
+  if (!apiKey || apiKey === 'your_polygon_api_key_here') {
+    return NextResponse.json({ error: 'POLYGON_API_KEY not configured' }, { status: 500 })
+  }
+
   const raw = req.nextUrl.searchParams.get('tickers') ?? ''
   const tickers = raw
     .split(',')
@@ -54,56 +49,54 @@ export async function GET(req: NextRequest) {
 
   if (tickers.length === 0) return NextResponse.json({ articles: [] })
 
-  const results = await Promise.allSettled(
-    tickers.map((ticker) => fetchFeed(googleNewsUrl(ticker), ticker))
-  )
+  const url = new URL('https://api.polygon.io/v2/reference/news')
+  url.searchParams.set('ticker.any_of', tickers.join(','))
+  url.searchParams.set('limit', '50')
+  url.searchParams.set('order', 'desc')
+  url.searchParams.set('sort', 'published_utc')
+  url.searchParams.set('apiKey', apiKey)
+
+  const res = await fetch(url.toString(), {
+    next: { revalidate: 600 },
+    signal: AbortSignal.timeout(8000),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    return NextResponse.json({ error: `Polygon error ${res.status}: ${body}` }, { status: 502 })
+  }
+
+  const data: PolygonResponse = await res.json()
 
   const seenLinks = new Set<string>()
   const seenTitleKeys = new Set<string>()
 
-  const articles = results
-    .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
-    .flatMap((r) => r.value)
-    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
-    .filter((a) => {
-      if (!a.link || seenLinks.has(a.link)) return false
-      seenLinks.add(a.link)
-      const key = titleKey(a.title)
+  const articles: ArticleResult[] = (data.results ?? [])
+    .filter((article) => {
+      if (!article.article_url || seenLinks.has(article.article_url)) return false
+      seenLinks.add(article.article_url)
+      const key = titleKey(article.title)
       if (key && seenTitleKeys.has(key)) return false
       if (key) seenTitleKeys.add(key)
       return true
     })
-
-  return NextResponse.json({ articles })
-}
-
-async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> {
-  try {
-    const res = await fetch(url, {
-      next: { revalidate: 600 },
-      signal: AbortSignal.timeout(6000),
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RSS reader)' },
-    })
-    if (!res.ok) return []
-    const xml = await res.text()
-    const feed = await parser.parseString(xml)
-    return feed.items.map((item): ArticleResult => {
-      const { title, source } = parseTitle(item.title ?? '')
+    .map((article) => {
+      // Tag with the first matching ticker from the user's holdings;
+      // fall back to the first ticker Polygon tagged if none overlap
+      const matchedTicker =
+        tickers.find((t) => article.tickers?.includes(t)) ?? article.tickers?.[0] ?? tickers[0]
       return {
-        ticker,
-        title,
-        link: item.link ?? '',
-        pubDate: item.pubDate ?? new Date().toISOString(),
-        source,
-        blurb: item.contentSnippet?.trim() || undefined,
-        imageUrl:
-          item.mediaContent?.$?.url ??
-          (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined),
+        ticker: matchedTicker,
+        title: article.title,
+        link: article.article_url,
+        pubDate: article.published_utc,
+        source: article.publisher.name,
+        blurb: article.description || undefined,
+        imageUrl: article.image_url || undefined,
       }
     })
-  } catch {
-    return []
-  }
+
+  return NextResponse.json({ articles })
 }
 
 function titleKey(title: string): string {

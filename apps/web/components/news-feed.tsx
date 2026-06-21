@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -29,16 +29,6 @@ function formatDate(dateStr: string): string {
 function NewsCard({ article, index }: { article: Article; index: number }) {
   const [imgSrc, setImgSrc] = useState<string | null>(article.imageUrl ?? null)
   const [imgVisible, setImgVisible] = useState(false)
-
-  useEffect(() => {
-    if (imgSrc) return
-    let cancelled = false
-    fetch(`/api/og-image?url=${encodeURIComponent(article.link)}`)
-      .then((r) => r.json())
-      .then((data) => { if (!cancelled && data.imageUrl) setImgSrc(data.imageUrl) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [article.link, imgSrc])
 
   return (
     <a

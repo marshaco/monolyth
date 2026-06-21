@@ -1,2 +1,4 @@
 investing_hub.pdf
 .env
+.env.local
+.env*.local
