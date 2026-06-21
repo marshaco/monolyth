@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Note
+
+Not all features outlined below, as this project is a work-in-progress.
+
 ## Project
 
 **monolyth** — "All your insights, in one place."
@@ -98,6 +102,7 @@ infra/
 ## Commands
 
 > Update this section as tooling is added.
+
 
 ```bash
 # Start local infrastructure (Postgres, Redis, Nginx)
