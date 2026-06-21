@@ -10,6 +10,14 @@ type FeedItem = {
   mediaContent?: { $?: { url?: string; medium?: string } }
 }
 
+type ParsedItem = {
+  title: string
+  link: string
+  pubDate: string
+  blurb?: string
+  imageUrl?: string
+}
+
 type ArticleResult = {
   ticker: string
   title: string
@@ -24,17 +32,21 @@ const parser = new Parser<object, FeedItem>({
   customFields: { item: [['media:content', 'mediaContent']] },
 })
 
-// Per-ticker RSS sources — each function receives the ticker and returns the feed URL.
-// Sources that don't support per-ticker filtering (e.g. general market feeds) are excluded
-// here; they would need a separate topic-based ingestion path.
-const SOURCES: Array<(ticker: string) => string> = [
-  (t) => `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${t}&region=US&lang=en-US`,
-  (t) => `https://search.cnbc.com/rs/search/combinedcombined/articles.xml?keywords=${t}&type=article&sort=newest`,
-  (t) => `https://seekingalpha.com/api/sa/combined/${t}.xml`,
-  (t) => `https://feeds.marketwatch.com/marketwatch/realtimeheadlines/?filter=${t}`,
+// General finance/markets RSS feeds from reputable outlets.
+// These are fetched once per request (cached), then filtered by ticker mention —
+// no reliance on Yahoo Finance's unofficial per-ticker API.
+const FEEDS = [
+  'https://feeds.reuters.com/reuters/businessNews',
+  'https://feeds.reuters.com/reuters/technologyNews',
+  'https://www.cnbc.com/id/100003114/device/rss/rss.html',    // Top News
+  'https://www.cnbc.com/id/15839135/device/rss/rss.html',     // US Markets
+  'https://www.cnbc.com/id/19854910/device/rss/rss.html',     // Technology
+  'https://feeds.marketwatch.com/marketwatch/topstories/',
+  'https://feeds.marketwatch.com/marketwatch/marketpulse/',
+  'https://www.barrons.com/xml/rss/3_7514.xml',
+  'https://www.investopedia.com/feedbuilder/feed/getfeed/?feedName=rss_top_headlines',
 ]
 
-// Common words excluded when building the dedup title key
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
   'of', 'is', 'are', 'was', 'were', 'be', 'by', 'its', 'it', 'as',
@@ -50,48 +62,57 @@ export async function GET(req: NextRequest) {
 
   if (tickers.length === 0) return NextResponse.json({ articles: [] })
 
-  const results = await Promise.allSettled(
-    tickers.flatMap((ticker) => SOURCES.map((urlFn) => fetchFeed(urlFn(ticker), ticker)))
-  )
+  // Fetch all feeds in parallel; each is cached for 10 minutes
+  const results = await Promise.allSettled(FEEDS.map(fetchFeed))
+
+  const allItems = results
+    .filter((r): r is PromiseFulfilledResult<ParsedItem[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value)
+    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
 
   const seenLinks = new Set<string>()
   const seenTitleKeys = new Set<string>()
+  const articles: ArticleResult[] = []
 
-  const articles = results
-    .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
-    .flatMap((r) => r.value)
-    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
-    .filter((a) => {
-      if (!a.link || seenLinks.has(a.link)) return false
-      seenLinks.add(a.link)
+  for (const item of allItems) {
+    if (!item.link || seenLinks.has(item.link)) continue
+    seenLinks.add(item.link)
 
-      // Fuzzy dedup: same story covered by multiple outlets shares similar title words
-      const key = titleKey(a.title)
-      if (key && seenTitleKeys.has(key)) return false
-      if (key) seenTitleKeys.add(key)
+    const key = titleKey(item.title)
+    if (key && seenTitleKeys.has(key)) continue
+    if (key) seenTitleKeys.add(key)
 
-      return true
+    // Tag with the first ticker this article mentions
+    const matchedTicker = tickers.find((t) => mentionsTicker(item, t))
+    if (!matchedTicker) continue
+
+    articles.push({
+      ticker: matchedTicker,
+      title: item.title,
+      link: item.link,
+      pubDate: item.pubDate,
+      source: extractDomain(item.link),
+      blurb: item.blurb,
+      imageUrl: item.imageUrl,
     })
+  }
 
   return NextResponse.json({ articles })
 }
 
-async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> {
+async function fetchFeed(url: string): Promise<ParsedItem[]> {
   try {
-    // Cache RSS XML for 5 minutes to avoid hammering sources on every page load
     const res = await fetch(url, {
-      next: { revalidate: 300 },
+      next: { revalidate: 600 },
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) return []
     const xml = await res.text()
     const feed = await parser.parseString(xml)
-    return feed.items.map((item): ArticleResult => ({
-      ticker,
+    return feed.items.map((item): ParsedItem => ({
       title: item.title ?? '',
       link: item.link ?? '',
       pubDate: item.pubDate ?? new Date().toISOString(),
-      source: extractDomain(item.link ?? ''),
       blurb: item.contentSnippet?.trim() || undefined,
       imageUrl:
         item.mediaContent?.$?.url ??
@@ -102,6 +123,12 @@ async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> 
   }
 }
 
+// Match "$AAPL", "(AAPL)", "AAPL:" and plain "AAPL" as a whole word
+function mentionsTicker(item: ParsedItem, ticker: string): boolean {
+  const haystack = `${item.title} ${item.blurb ?? ''}`
+  return new RegExp(`\\$?\\b${ticker}\\b`, 'i').test(haystack)
+}
+
 function extractDomain(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '')
@@ -110,7 +137,6 @@ function extractDomain(url: string): string {
   }
 }
 
-// Build a 6-word key from meaningful title words for cross-source deduplication
 function titleKey(title: string): string {
   return title
     .toLowerCase()
