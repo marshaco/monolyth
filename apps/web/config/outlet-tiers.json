@@ -1,0 +1,33 @@
+{
+  "$comment": "Outlet reputability tiers for feed ranking (#15). Edit freely; keys are registrable domains (as outletKey() in lib/feed-ranking.ts produces). An article's effective age is shifted by its tier's ageBonusHours before the feed is ordered, so higher tiers rank as if published that much more recently. Unlisted outlets get no adjustment. Nothing is ever excluded.",
+  "tiers": {
+    "1": {
+      "ageBonusHours": 12,
+      "reason": "Major news organisations with professional newsrooms, editorial standards and corrections policies; primary sources for market-moving news.",
+      "outlets": [
+        "reuters.com", "bloomberg.com", "wsj.com", "ft.com", "cnbc.com", "apnews.com",
+        "nytimes.com", "economist.com", "barrons.com", "washingtonpost.com"
+      ]
+    },
+    "2": {
+      "ageBonusHours": 4,
+      "reason": "Established financial and business media: reliable, but more aggregation, opinion or syndicated content than Tier 1.",
+      "outlets": [
+        "marketwatch.com", "yahoo.com", "investing.com", "forbes.com", "businessinsider.com",
+        "fortune.com", "theglobeandmail.com", "morningstar.com", "investors.com", "benzinga.com",
+        "bbc.co.uk", "theguardian.com", "axios.com", "cnn.com", "techcrunch.com", "theverge.com",
+        "thestreet.com", "kiplinger.com"
+      ]
+    },
+    "3": {
+      "ageBonusHours": -6,
+      "reason": "Smaller or high-volume sites: stock-pick and promotional content, contributor networks without newsroom editing, or crypto-focused blogs covering equities. Still shown, just ranked lower.",
+      "outlets": [
+        "fool.com", "247wallst.com", "stocktwits.com", "seekingalpha.com", "zacks.com",
+        "insidermonkey.com", "coincentral.com", "blockonomi.com", "watcher.guru", "financebuzz.com",
+        "quiverquant.com", "kalkinemedia.com", "invezz.com", "fxempire.com", "moneycheck.com",
+        "parameter.io", "beincrypto.com", "tradingkey.com", "stocksdownunder.com", "analyticsinsight.net"
+      ]
+    }
+  }
+}

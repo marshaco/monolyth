@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest'
+import outletTiers from '@/config/outlet-tiers.json'
 import {
   capOutletsPerWindow,
   feedDistribution,
   interleaveByTicker,
+  orderByReputation,
+  outletAgeBonusHours,
   outletKey,
   rankFeed,
   rotateOutletsWithinTicker,
 } from '@/lib/feed-ranking'
 
-const a = (ticker: string, source: string, id = '') => ({ ticker, source, id: `${ticker}-${source}-${id}` })
+const a = (ticker: string, source: string, id = '', pubDate = '2026-10-01T12:00:00Z') => ({
+  ticker,
+  source,
+  id: `${ticker}-${source}-${id}`,
+  pubDate,
+})
 const sources = (xs: { source: string }[]) => xs.map((x) => x.source)
 const tickers = (xs: { ticker: string }[]) => xs.map((x) => x.ticker)
 
@@ -96,5 +104,41 @@ describe('feedDistribution', () => {
 
   it('handles an empty feed', () => {
     expect(feedDistribution([])).toEqual({ pageSize: 12, topOutletShare: 0, topOutlet: null, outlets: 0 })
+  })
+})
+
+
+describe('outlet tiers', () => {
+  const hoursAgo = (h: number) => new Date(Date.parse('2026-10-01T12:00:00Z') - h * 3_600_000).toISOString()
+
+  it('loads bonuses from config, matching subdomains and ignoring unlisted outlets', () => {
+    expect(outletAgeBonusHours('www.reuters.com')).toBe(12)
+    expect(outletAgeBonusHours('uk.finance.yahoo.com')).toBe(4)
+    expect(outletAgeBonusHours('fool.com')).toBe(-6)
+    expect(outletAgeBonusHours('some-new-blog.io')).toBe(0)
+  })
+
+  it('every outlet is in at most one tier, and every tier has a reason', () => {
+    const tiers = Object.values(outletTiers.tiers)
+    const all = tiers.flatMap((t) => t.outlets)
+    expect(new Set(all).size).toBe(all.length)
+    expect(tiers.every((t) => t.reason.length > 20)).toBe(true)
+  })
+
+  it('ranks a slightly older major-outlet story ahead of a fresher small-site one', () => {
+    const feed = [a('AAPL', 'fool.com', '1', hoursAgo(1)), a('AAPL', 'reuters.com', '2', hoursAgo(8))]
+    expect(orderByReputation(feed).map((x) => x.source)).toEqual(['reuters.com', 'fool.com'])
+  })
+
+  it('still prefers much fresher news over tier', () => {
+    const feed = [a('AAPL', 'fool.com', '1', hoursAgo(1)), a('AAPL', 'reuters.com', '2', hoursAgo(48))]
+    expect(orderByReputation(feed).map((x) => x.source)).toEqual(['fool.com', 'reuters.com'])
+  })
+
+  it('never drops lower-tier articles', () => {
+    const feed = ['fool.com', 'reuters.com', 'zacks.com', 'cnbc.com', 'x.io'].map((s, i) => a('AAPL', s, `${i}`, hoursAgo(i)))
+    const ranked = rankFeed(feed)
+    expect(new Set(ranked)).toEqual(new Set(feed))
+    expect(ranked[0].source).toBe('reuters.com')
   })
 })
