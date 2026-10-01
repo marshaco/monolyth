@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
   const seenLinks = new Set<string>()
   const seenTitleKeys = new Set<string>()
 
-  const articles = results
+  const deduped = results
     .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
     .flatMap((r) => r.value)
     .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
@@ -96,7 +96,27 @@ export async function GET(req: NextRequest) {
       return true
     })
 
-  return NextResponse.json({ articles })
+  return NextResponse.json({ articles: interleaveByTicker(deduped) })
+}
+
+// Round-robin across tickers so one busy holding can't fill the top of the feed.
+// Input must be date-sorted; groups are ordered by their newest article.
+function interleaveByTicker(articles: ArticleResult[]): ArticleResult[] {
+  const groups = new Map<string, ArticleResult[]>()
+  for (const a of articles) {
+    const group = groups.get(a.ticker)
+    if (group) group.push(a)
+    else groups.set(a.ticker, [a])
+  }
+
+  const queues = [...groups.values()]
+  const out: ArticleResult[] = []
+  for (let i = 0; out.length < articles.length; i++) {
+    for (const q of queues) {
+      if (i < q.length) out.push(q[i])
+    }
+  }
+  return out
 }
 
 async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> {
