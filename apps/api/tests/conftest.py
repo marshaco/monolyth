@@ -10,7 +10,7 @@ from monolyth_db import get_engine
 def clean_tables():
     yield
     with get_engine().begin() as conn:
-        conn.execute(text("TRUNCATE filings, holdings, users CASCADE"))
+        conn.execute(text("TRUNCATE filing_chunks, filings, holdings, users CASCADE"))
 
 
 @pytest.fixture

@@ -644,6 +644,7 @@ source = { virtual = "apps/api" }
 dependencies = [
     { name = "fastapi" },
     { name = "monolyth-db" },
+    { name = "monolyth-intelligence" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -651,6 +652,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "monolyth-db", editable = "packages/db" },
+    { name = "monolyth-intelligence", editable = "services/intelligence" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 
