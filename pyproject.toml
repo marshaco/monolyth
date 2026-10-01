@@ -7,11 +7,11 @@ requires-python = ">=3.12"
 package = false
 
 [tool.uv.workspace]
-members = ["packages/db", "apps/api", "services/ingestion"]
+members = ["packages/db", "apps/api", "services/ingestion", "services/sync"]
 
 [dependency-groups]
 dev = ["pytest>=8", "httpx2"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/db/tests", "apps/api/tests", "services/ingestion/tests"]
-pythonpath = ["apps/api"]
+testpaths = ["packages/db/tests", "apps/api/tests", "services/ingestion/tests", "services/sync/tests"]
+pythonpath = ["apps/api", "services/sync"]
