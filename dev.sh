@@ -41,8 +41,11 @@ fi
 # ── 2. FastAPI backend ───────────────────────────────────────────────────────
 API_DIR="$ROOT/apps/api"
 if [ -f "$API_DIR/main.py" ]; then
+  log "Syncing Python deps and applying DB migrations..."
+  (cd "$ROOT" && uv sync --all-packages -q && cd packages/db && uv run alembic upgrade head) \
+    || err "Python setup failed — is uv installed and Postgres up?"
   log "Starting FastAPI backend..."
-  (cd "$API_DIR" && uvicorn main:app --reload --port 8000 2>&1 || true) | sed "s/^/$(echo -e "${YELLOW}[api]${NC}") /" &
+  (cd "$API_DIR" && uv run uvicorn main:app --reload --port 8000 2>&1 || true) | sed "s/^/$(echo -e "${YELLOW}[api]${NC}") /" &
   PIDS+=($!)
   ok "FastAPI started (PID ${PIDS[-1]})."
 else
