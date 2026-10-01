@@ -54,6 +54,8 @@ function NewsCard({ article, index }: { article: Article; index: number }) {
       {/* Image / gradient header */}
       <div className="relative aspect-video bg-gradient-to-br from-primary/20 via-primary/10 to-muted overflow-hidden flex-shrink-0">
         {imgSrc && (
+          // Images come from arbitrary publisher hosts, which next/image's remotePatterns can't enumerate
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={imgSrc}
             alt=""
