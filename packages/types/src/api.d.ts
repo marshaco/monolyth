@@ -42,6 +42,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/engagement/outlet-trust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Outlet Trust
+         * @description Platform-wide outlet trust, cached per process for TRUST_CACHE_SECONDS.
+         */
+        get: operations["outlet_trust_v1_engagement_outlet_trust_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/filings": {
         parameters: {
             query?: never;
@@ -230,6 +250,17 @@ export interface components {
             /** Ticker */
             ticker: string;
         };
+        /** OutletTrust */
+        OutletTrust: {
+            /** Min Users */
+            min_users: number;
+            /** Outlets */
+            outlets: {
+                [key: string]: number;
+            };
+            /** Users */
+            users: number;
+        };
         /** SearchHitOut */
         SearchHitOut: {
             /** Company Name */
@@ -316,6 +347,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Affinity"];
+                };
+            };
+        };
+    };
+    outlet_trust_v1_engagement_outlet_trust_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutletTrust"];
                 };
             };
         };

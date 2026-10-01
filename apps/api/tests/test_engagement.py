@@ -66,3 +66,63 @@ def test_events_outside_window_ignored(client):
     age_all_events(91)
     a = client.get("/v1/engagement/affinity").json()
     assert a == {"events": 0, "half_life_days": HALF_LIFE_DAYS, "personalised": False, "outlets": {}, "tickers": {}}
+
+
+# --- platform-wide outlet trust (#13) ---
+
+from routers import engagement as engagement_router  # noqa: E402
+from routers.engagement import MIN_TRUST_USERS, compute_outlet_trust  # noqa: E402
+
+
+def add_users_reading(clicks_by_user: list[dict[str, int]]):
+    with Session(get_engine()) as s:
+        for i, clicks in enumerate(clicks_by_user):
+            user = User(clerk_user_id=f"trust_user_{i}")
+            s.add(user)
+            s.flush()
+            for outlet, n in clicks.items():
+                s.add_all(
+                    ArticleEngagement(user_id=user.id, article_url="https://x.com/a", outlet=outlet, ticker="AAPL")
+                    for _ in range(n)
+                )
+        s.commit()
+
+
+def trust():
+    with Session(get_engine()) as s:
+        return compute_outlet_trust(s)
+
+
+def test_no_trust_until_enough_distinct_readers():
+    add_users_reading([{"reuters.com": 3}] * (MIN_TRUST_USERS - 1))
+    t = trust()
+    assert t.users == MIN_TRUST_USERS - 1 and t.outlets == {}
+
+
+def test_outlets_scored_by_share_of_readers_votes():
+    # 6 users split between reuters and fool; reuters gets most of each vote
+    add_users_reading([{"reuters.com": 3, "fool.com": 1}] * 6)
+    t = trust()
+    assert t.outlets == {"reuters.com": 1.0, "fool.com": round(0.25 / 0.75, 4)}
+
+
+def test_one_heavy_clicker_cannot_dominate():
+    # 5 ordinary readers of reuters, plus one user hammering fool.com 1,000 times
+    add_users_reading([{"reuters.com": 1, "fool.com": 1}] * 5 + [{"fool.com": 1000}])
+    t = trust()
+    # fool.com: 5 × 0.5 + 1 vote = 3.5 ; reuters: 5 × 0.5 = 2.5 → the flood counts as just one vote
+    assert t.outlets["fool.com"] == 1.0 and t.outlets["reuters.com"] == round(2.5 / 3.5, 4)
+
+
+def test_outlet_needs_min_readers_even_with_many_clicks():
+    add_users_reading([{"reuters.com": 1}] * MIN_TRUST_USERS + [{"tiny.blog": 500}])
+    assert "tiny.blog" not in trust().outlets
+
+
+def test_endpoint_is_cached(client, monkeypatch):
+    monkeypatch.setattr(engagement_router, "_trust_cache", None)
+    first = client.get("/v1/engagement/outlet-trust").json()
+    add_users_reading([{"reuters.com": 1}] * MIN_TRUST_USERS)
+    assert client.get("/v1/engagement/outlet-trust").json() == first  # served from cache
+    monkeypatch.setattr(engagement_router, "_trust_cache", None)
+    assert client.get("/v1/engagement/outlet-trust").json()["outlets"] == {"reuters.com": 1.0}

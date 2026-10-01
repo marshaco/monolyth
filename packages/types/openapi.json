@@ -273,6 +273,32 @@
         "title": "HoldingOut",
         "type": "object"
       },
+      "OutletTrust": {
+        "properties": {
+          "min_users": {
+            "title": "Min Users",
+            "type": "integer"
+          },
+          "outlets": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Outlets",
+            "type": "object"
+          },
+          "users": {
+            "title": "Users",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "users",
+          "min_users",
+          "outlets"
+        ],
+        "title": "OutletTrust",
+        "type": "object"
+      },
       "SearchHitOut": {
         "properties": {
           "company_name": {
@@ -415,6 +441,28 @@
           }
         },
         "summary": "Affinity",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/v1/engagement/outlet-trust": {
+      "get": {
+        "description": "Platform-wide outlet trust, cached per process for TRUST_CACHE_SECONDS.",
+        "operationId": "outlet_trust_v1_engagement_outlet_trust_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutletTrust"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Outlet Trust",
         "tags": [
           "engagement"
         ]
