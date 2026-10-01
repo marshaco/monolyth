@@ -118,6 +118,9 @@ cd packages/db && uv run alembic revision --autogenerate -m "describe change"
 # API (FastAPI) — routes live under /v1; docs at http://localhost:8000/docs
 cd apps/api && uv run uvicorn main:app --reload
 
+# Ingest SEC filings for tickers (needs SEC_USER_AGENT="monolyth you@domain.com")
+uv run monolyth-ingest AAPL MSFT --since 2026-01-01
+
 # Python tests (creates/drops a separate monolyth_test database) — run from repo root
 uv run pytest
 
@@ -127,8 +130,8 @@ uv run python apps/api/scripts/export_openapi.py && (cd packages/types && npm ru
 # Web (Next.js)
 cd apps/web && npm run dev
 
-# Celery worker
-cd services/sync && celery -A worker worker --loglevel=info
+# Celery worker + embedded beat scheduler (dev); filing watch needs SEC_USER_AGENT
+cd services/sync && uv run celery -A worker worker -B --loglevel=info
 ```
 
 

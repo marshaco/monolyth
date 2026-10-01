@@ -56,7 +56,8 @@ fi
 SYNC_DIR="$ROOT/services/sync"
 if [ -f "$SYNC_DIR/worker.py" ]; then
   log "Starting Celery worker..."
-  (cd "$SYNC_DIR" && celery -A worker worker --loglevel=info 2>&1 || true) | sed "s/^/$(echo -e "${CYAN}[celery]${NC}") /" &
+  # -B: embedded beat scheduler (dev only). Filing watch needs SEC_USER_AGENT; it skips without one.
+  (cd "$SYNC_DIR" && uv run celery -A worker worker -B --loglevel=info 2>&1 || true) | sed "s/^/$(echo -e "${CYAN}[celery]${NC}") /" &
   PIDS+=($!)
   ok "Celery started (PID ${PIDS[-1]})."
 else

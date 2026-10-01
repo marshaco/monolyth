@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, UniqueConstraint, func
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -47,3 +47,33 @@ class Holding(TimestampMixin, Base):
     brokerage: Mapped[str] = mapped_column(String(32), default="manual")
 
     user: Mapped[User] = relationship(back_populates="holdings")
+
+
+class Filing(TimestampMixin, Base):
+    """A company filing (SEC 10-K/10-Q/8-K today; UK RNS later). Keyed by ticker rather than
+    linked to holdings, since one filing matters to every user who holds the company."""
+
+    __tablename__ = "filings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    # SEC accession number (e.g. "0000320193-24-000123"), unique across all of EDGAR
+    accession_number: Mapped[str] = mapped_column(String(32), unique=True)
+    ticker: Mapped[str] = mapped_column(String(16), index=True)
+    cik: Mapped[int]
+    company_name: Mapped[str] = mapped_column(String(255))
+    form: Mapped[str] = mapped_column(String(16))
+    filed_on: Mapped[date] = mapped_column(Date, index=True)
+    report_date: Mapped[date | None] = mapped_column(Date)
+    document_url: Mapped[str] = mapped_column(String(512))
+    description: Mapped[str | None] = mapped_column(String(255))
+    # Plain text of the primary document; null until fetched and parsed
+    text: Mapped[str | None] = mapped_column(Text)
+    parsed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Plain-English summary for retail investors (services/intelligence); null until summarised
+    summary_headline: Mapped[str | None] = mapped_column(String(255))
+    summary: Mapped[str | None] = mapped_column(Text)
+    summary_model: Mapped[str | None] = mapped_column(String(64))
+    summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when a filing can't be summarised (e.g. over the size limit), so it isn't retried every run
+    summary_error: Mapped[str | None] = mapped_column(String(255))

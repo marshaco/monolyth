@@ -1,0 +1,21 @@
+[project]
+name = "monolyth-ingestion"
+version = "0.1.0"
+description = "Fetches and parses company filings (SEC EDGAR) into the monolyth database"
+requires-python = ">=3.12"
+dependencies = [
+    "monolyth-db",
+    "httpx2>=2.13",
+    "beautifulsoup4>=4.12",
+    "lxml>=5",
+]
+
+[project.scripts]
+monolyth-ingest = "monolyth_ingestion.cli:main"
+
+[tool.uv.sources]
+monolyth-db = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
