@@ -28,5 +28,9 @@ app.conf.update(
             "task": "tasks.summarize_filings",
             "schedule": float(os.environ.get("SUMMARIZE_INTERVAL_SECONDS", 10 * 60)),
         },
+        "embed-filings": {
+            "task": "tasks.embed_filings",
+            "schedule": float(os.environ.get("EMBED_INTERVAL_SECONDS", 10 * 60)),
+        },
     },
 )
