@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, KeyboardEvent } from 'react'
 import { Input } from '@/components/ui/input'
+import { useLocalStorage, type Codec } from '@/lib/use-local-storage'
 import { Button } from '@/components/ui/button'
 import { X, TrendingUp, Sun, Moon, Monitor } from 'lucide-react'
 
@@ -15,12 +16,18 @@ const THEMES: { value: ThemeValue; label: string; icon: typeof Sun }[] = [
   { value: 'system', label: 'System', icon: Monitor },
 ]
 
+// Stored as a plain string, not JSON, because the inline script in app/layout.tsx reads it directly
+const THEME_CODEC: Codec<ThemeValue> = {
+  parse: (raw) => (THEMES.some((t) => t.value === raw) ? (raw as ThemeValue) : 'dark'),
+  stringify: (t) => t,
+}
+
+// The initial class is set by the inline script in app/layout.tsx before paint
 function applyTheme(t: ThemeValue) {
   const isDark =
     t === 'dark' ||
     (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', isDark)
-  localStorage.setItem(THEME_KEY, t)
 }
 
 interface Props {
@@ -30,15 +37,9 @@ interface Props {
 
 export default function HoldingsSidebar({ tickers, onChange }: Props) {
   const [input, setInput] = useState('')
-  const [theme, setThemeState] = useState<ThemeValue>('dark')
+  const [theme, setTheme] = useLocalStorage(THEME_KEY, 'dark', THEME_CODEC)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const prefsRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const stored = (localStorage.getItem(THEME_KEY) as ThemeValue) ?? 'dark'
-    setThemeState(stored)
-    applyTheme(stored)
-  }, [])
 
   useEffect(() => {
     if (!prefsOpen) return
@@ -52,7 +53,7 @@ export default function HoldingsSidebar({ tickers, onChange }: Props) {
   }, [prefsOpen])
 
   const handleThemeChange = (t: ThemeValue) => {
-    setThemeState(t)
+    setTheme(t)
     applyTheme(t)
   }
 
