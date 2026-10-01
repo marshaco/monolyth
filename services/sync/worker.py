@@ -23,5 +23,10 @@ app.conf.update(
             "task": "tasks.watch_filings",
             "schedule": float(os.environ.get("FILING_WATCH_INTERVAL_SECONDS", 30 * 60)),
         },
+        # Also triggered right after a watch run that parsed new filings; this catches the backlog
+        "summarize-filings": {
+            "task": "tasks.summarize_filings",
+            "schedule": float(os.environ.get("SUMMARIZE_INTERVAL_SECONDS", 10 * 60)),
+        },
     },
 )
