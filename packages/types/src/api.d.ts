@@ -77,6 +77,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search
+         * @description Passages from the current user's holdings' filings most relevant to `q`,
+         *     e.g. "what have my holdings said about margin pressure?".
+         */
+        get: operations["search_v1_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -139,6 +160,23 @@ export interface components {
             name: string | null;
             /** Quantity */
             quantity: string | null;
+            /** Ticker */
+            ticker: string;
+        };
+        /** SearchHitOut */
+        SearchHitOut: {
+            /** Company Name */
+            company_name: string;
+            /** Document Url */
+            document_url: string;
+            /** Filed On */
+            filed_on: string;
+            /** Form */
+            form: string;
+            /** Score */
+            score: number;
+            /** Text */
+            text: string;
             /** Ticker */
             ticker: string;
         };
@@ -288,6 +326,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_v1_search_get: {
+        parameters: {
+            query: {
+                q: string;
+                k?: number;
+                min_score?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchHitOut"][];
+                };
             };
             /** @description Validation Error */
             422: {

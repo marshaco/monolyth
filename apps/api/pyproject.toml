@@ -7,6 +7,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "monolyth-db",
+    "monolyth-intelligence",
 ]
 
 [tool.uv]
@@ -14,3 +15,4 @@ package = false
 
 [tool.uv.sources]
 monolyth-db = { workspace = true }
+monolyth-intelligence = { workspace = true }
