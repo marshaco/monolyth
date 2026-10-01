@@ -36,6 +36,9 @@ services:
       - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    # Docker Desktop (macOS/Windows) defines host.docker.internal; Linux needs it mapped explicitly
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - db
       - redis
