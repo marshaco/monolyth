@@ -25,18 +25,24 @@ const parser = new Parser<object, FeedItem>({
   customFields: { item: [['media:content', 'mediaContent']] },
 })
 
-const PAYWALLED_PUBLISHERS = new Set([
-  'Financial Times',
-  'The Wall Street Journal',
-  "Barron's",
-  'Bloomberg',
-  'The Economist',
-  'Reuters',
-  'The Times',
-  'The Telegraph',
-  'The Information',
-  'Investor\'s Business Daily',
-])
+// Matched against the article's hostname, including subdomains (e.g. markets.ft.com)
+const PAYWALLED_DOMAINS = [
+  'ft.com',             // Financial Times
+  'wsj.com',            // The Wall Street Journal
+  'barrons.com',        // Barron's
+  'bloomberg.com',      // Bloomberg
+  'economist.com',      // The Economist
+  'reuters.com',        // Reuters
+  'thetimes.com',       // The Times
+  'thetimes.co.uk',     // The Times (legacy domain)
+  'telegraph.co.uk',    // The Telegraph
+  'theinformation.com', // The Information
+  'investors.com',      // Investor's Business Daily
+]
+
+function isPaywalledDomain(hostname: string): boolean {
+  return PAYWALLED_DOMAINS.some((d) => hostname === d || hostname.endsWith(`.${d}`))
+}
 
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
@@ -116,7 +122,7 @@ async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> 
         imageUrl:
           item.mediaContent?.$?.url ??
           (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined),
-        isPaywalled: PAYWALLED_PUBLISHERS.has(source),
+        isPaywalled: isPaywalledDomain(source),
       }
     })
   } catch {
