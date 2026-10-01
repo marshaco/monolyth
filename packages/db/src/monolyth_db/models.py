@@ -69,3 +69,11 @@ class Filing(TimestampMixin, Base):
     # Plain text of the primary document; null until fetched and parsed
     text: Mapped[str | None] = mapped_column(Text)
     parsed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Plain-English summary for retail investors (services/intelligence); null until summarised
+    summary_headline: Mapped[str | None] = mapped_column(String(255))
+    summary: Mapped[str | None] = mapped_column(Text)
+    summary_model: Mapped[str | None] = mapped_column(String(64))
+    summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when a filing can't be summarised (e.g. over the size limit), so it isn't retried every run
+    summary_error: Mapped[str | None] = mapped_column(String(255))
