@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import HoldingsSidebar from '@/components/holdings-sidebar'
 import NewsFeed from '@/components/news-feed'
 import FilingsPanel from '@/components/filings-panel'
+import FilingSearch from '@/components/filing-search'
 import { useHoldings } from '@/lib/use-holdings'
 
 export type Article = {
@@ -61,6 +62,7 @@ export default function Home() {
     <div className="flex h-screen bg-background text-foreground">
       <HoldingsSidebar tickers={tickers} onChange={setTickers} />
       <main className="flex-1 overflow-y-auto p-6">
+        {tickers.length > 0 && <FilingSearch />}
         <FilingsPanel tickerKey={tickerKey} />
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-base font-semibold text-foreground">News Feed</h1>
