@@ -1,77 +1,141 @@
-# MONOLYTH
+# monolyth
 
 > All your insights, in one place.
 
-Monolyth is an AI-powered investment intelligence platform that aggregates your portfolio across brokerages, crypto exchanges, and pensions, then surfaces insights drawn from earnings filings, investor reports, and market data — explained in plain English.
+monolyth is an AI-powered investment intelligence platform for retail investors. You connect your brokerage accounts, and monolyth keeps track of everything that matters to the companies you own: the news, what their latest filings actually say, and what it all means for your portfolio, explained in plain English.
 
-## Tech Stack
+![The monolyth news feed: holdings in the sidebar, news cards for each holding](docs/screenshot.png)
+
+## Why
+
+If you hold a dozen stocks across two or three brokerages, staying informed is a chore. The news is scattered across dozens of outlets, many of them paywalled. Earnings reports and SEC filings run to hundreds of pages. And no single app sees your whole portfolio.
+
+monolyth puts it in one place:
+
+- **One portfolio**, synced from every brokerage you use
+- **News about what you own**, not the market at large
+- **Filings you'll actually read**: a 10-K boiled down to the few sentences a retail investor needs
+- **Suggestions with reasons**, based on what you hold and what those companies are saying
+
+## Features
+
+| Feature | Status |
+|---|---|
+| **News feed per holding**: articles from many outlets, de-duplicated, rotated across your holdings, with images and paywall labels | ✅ Working |
+| **Holdings**: add tickers by hand and keep them across sessions | ✅ Working (moving from the browser to the API) |
+| **REST API and database**: FastAPI, PostgreSQL with pgvector, Alembic migrations | ✅ Foundation in place |
+| **Brokerage sync**: Robinhood, Trading 212 and more ([#6](https://github.com/marshaco/monolyth/issues/6), [#7](https://github.com/marshaco/monolyth/issues/7)) | 🔜 Planned |
+| **Filing intelligence**: SEC 10-K/10-Q/8-K and UK RNS filings summarised by Claude, with alerts when a holding files | 🔜 Planned |
+| **Semantic search across your holdings' filings** ("what have my holdings said about margin pressure?") | 🔜 Planned |
+| **Personalised feed ranking** ([#10](https://github.com/marshaco/monolyth/issues/10), [#12](https://github.com/marshaco/monolyth/issues/12), [#13](https://github.com/marshaco/monolyth/issues/13)) | 🔜 Planned |
+| **Portfolio analysis and recommendations**: sector and geographic exposure, plus complementary ideas with reasoning | 🔜 Planned |
+
+## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js (App Router), Tailwind CSS, shadcn/ui, Recharts/Tremor |
+| Frontend | Next.js (App Router), Tailwind CSS, shadcn/ui |
 | Backend API | FastAPI (Python) |
-| Database | PostgreSQL + pgvector |
-| Auth | Clerk |
-| Portfolio Aggregation | Plaid (US), Nordigen/GoCardless (EU), direct exchange APIs (crypto) |
-| AI / LLM | Claude API (Anthropic) |
-| Embeddings | OpenAI text-embedding-3-small |
-| Caching | Redis |
-| Job Queue | BullMQ / Celery |
-| Infrastructure | Docker Compose (local dev), Nginx, Railway/Render (prod) |
-| Data Sources | SEC EDGAR, Companies House/RNS, Polygon.io / Alpha Vantage |
+| Database | PostgreSQL + pgvector, SQLAlchemy 2.0, Alembic |
+| Auth | Clerk (planned) |
+| LLM | Claude API (Anthropic) for summaries and analysis |
+| Embeddings | OpenAI `text-embedding-3-small` |
+| Background jobs | Celery + Redis |
+| Data sources | Bing News RSS, SEC EDGAR, Companies House / RNS, Polygon.io, Alpha Vantage |
+| Tooling | uv (Python), npm (web), Docker Compose (local infrastructure), nginx |
 
-## Repository Structure
+## Getting started
 
-```
-monolyth/
-├── apps/
-│   ├── api/              # FastAPI backend
-│   └── web/              # Next.js frontend (App Router)
-├── packages/
-│   ├── db/               # Shared database package (schema, migrations, client)
-│   └── types/            # Shared TypeScript types
-├── services/
-│   ├── ingestion/        # Document ingestion service
-│   ├── intelligence/     # AI/LLM analysis layer
-│   └── sync/             # Background sync jobs
-└── infra/
-    ├── docker-compose.yml
-    └── nginx/
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 20.9 or newer
+- [uv](https://docs.astral.sh/uv/getting-started/installation/), which installs the right Python for you
+- [Docker](https://docs.docker.com/get-docker/) with Docker Compose
+
+### Install
+
+```bash
+git clone https://github.com/marshaco/monolyth.git
+cd monolyth
+
+uv sync --all-packages             # Python: API + shared DB package, into .venv/
+(cd apps/web && npm install)       # Web frontend
 ```
 
-## apps/api
+### Environment variables
 
-FastAPI (Python) backend. Handles portfolio aggregation via Plaid (US) and Nordigen/GoCardless (EU), crypto exchange API connections, and exposes endpoints consumed by `apps/web`.
+Nothing is required for local development. The defaults match the Docker Compose services.
 
-## apps/web
+| Variable | Used by | Default |
+|---|---|---|
+| `DATABASE_URL` | API, migrations | `postgresql+psycopg://monolyth:monolyth@localhost:5433/monolyth` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `infra/docker-compose.yml` | `monolyth` / `monolyth` / `monolyth` |
 
-Next.js frontend using the App Router. SSR for fast initial loads with streaming for real-time insight updates. Built with Tailwind CSS + shadcn/ui and Recharts/Tremor for portfolio visualisations. Auth handled by Clerk.
+API keys (Anthropic, OpenAI, Clerk, Polygon) will be added here as the features that need them land. Never commit them: `.env` and `.env*.local` are git-ignored.
 
-## packages/db
+### Run
 
-Shared database package used across the monorepo. Contains schema definitions, migrations, and the database client. PostgreSQL with the `pgvector` extension for vector/semantic search across filings.
+The quickest way is the dev script. It starts Postgres, Redis and nginx in Docker, applies database migrations, then runs the API and the web app:
 
-## packages/types
+```bash
+./dev.sh
+```
 
-Shared TypeScript types used across `apps/` and `services/` — portfolios, holdings, filings, embeddings, etc.
+| Service | URL |
+|---|---|
+| Web app | http://localhost:3000 |
+| API (with interactive docs) | http://localhost:8000/docs |
+| Everything behind nginx | http://localhost:8080 |
+| Postgres | `localhost:5433` (user, password and database all `monolyth`) |
 
-## services/ingestion
+Or run the pieces yourself:
 
-Pulls and parses raw financial documents from external sources: SEC EDGAR (US filings), Companies House/RNS (UK), and structured data from Polygon.io / Alpha Vantage.
+```bash
+docker compose -f infra/docker-compose.yml up -d        # Postgres, Redis, nginx
+(cd packages/db && uv run alembic upgrade head)         # apply migrations
+(cd apps/api && uv run uvicorn main:app --reload)       # API on :8000
+(cd apps/web && npm run dev)                            # web on :3000
+```
 
-## services/intelligence
+### Tests
 
-AI/LLM layer that transforms parsed documents into embeddings and plain-English insights. Uses the Claude API (Anthropic) for summarisation and insight generation, and OpenAI `text-embedding-3-small` for embeddings stored in pgvector.
+```bash
+uv run pytest                                  # API + migrations (uses a separate monolyth_test database)
+(cd apps/web && npx tsc --noEmit)              # type-check the frontend
+```
 
-## services/sync
+## Project structure
 
-Background job queue (BullMQ or Celery) for scheduled tasks: daily portfolio value syncs, new filing detection, and embedding generation for newly indexed documents. Redis backs the job queue and caches computed portfolio values.
+```
+apps/
+  web/             Next.js frontend: the app UI, plus the news route handlers (/api/news, /api/og-image)
+  api/             FastAPI backend: REST API under /v1, consumed by the frontend
+packages/
+  db/              Shared Python package: SQLAlchemy models, Alembic migrations, DB session
+  types/           Shared TypeScript types, mirrored from the API
+services/
+  ingestion/       (planned) Fetches and parses filings from SEC EDGAR and RNS
+  intelligence/    (planned) Embeddings and Claude summaries
+  sync/            (planned) Celery workers: portfolio sync, filing watch, news polling
+infra/
+  docker-compose.yml   Local Postgres + pgvector, Redis, nginx
+  nginx/               Reverse proxy: /api/v1/* to the API, everything else to the web app
+dev.sh             Starts everything for local development
+```
 
-## infra
+### How the pieces fit
 
-Docker Compose config for local development (PostgreSQL+pgvector, Redis, Nginx). The `nginx/` directory contains reverse proxy config routing traffic between `apps/web` and `apps/api`.
+1. **Holdings** are stored in Postgres through the API. Later, brokerage sync will keep them up to date automatically.
+2. **News** is fetched per holding, de-duplicated across outlets, and rotated so no single holding or outlet dominates.
+3. **Filings** (planned): a background worker watches EDGAR and RNS for your holdings. New filings are parsed, chunked and embedded into pgvector, then summarised by Claude, and you get an alert in the app.
 
-## GitHub
+## Roadmap
 
-[https://github.com/marshaco/monolyth](https://github.com/marshaco/monolyth)
+Work is tracked in [GitHub issues](https://github.com/marshaco/monolyth/issues). Roughly in order:
 
+1. Holdings on the server, then sign-in with Clerk
+2. Filing ingestion from SEC EDGAR, Claude summaries and in-app filing alerts
+3. News moved to a background pipeline, then personalised ranking ([#10](https://github.com/marshaco/monolyth/issues/10)–[#15](https://github.com/marshaco/monolyth/issues/15))
+4. Brokerage sync via SnapTrade ([#6](https://github.com/marshaco/monolyth/issues/6), [#7](https://github.com/marshaco/monolyth/issues/7))
+5. Portfolio analysis and recommendations
+6. Public landing page ([#2](https://github.com/marshaco/monolyth/issues/2))
