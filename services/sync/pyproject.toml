@@ -1,0 +1,17 @@
+[project]
+name = "monolyth-sync"
+version = "0.1.0"
+description = "Celery workers for monolyth: scheduled filing ingestion (and later portfolio sync, news polling)"
+requires-python = ">=3.12"
+dependencies = [
+    "celery[redis]>=5.4",
+    "monolyth-db",
+    "monolyth-ingestion",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+monolyth-db = { workspace = true }
+monolyth-ingestion = { workspace = true }

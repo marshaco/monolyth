@@ -127,8 +127,8 @@ uv run pytest
 # Web (Next.js)
 cd apps/web && npm run dev
 
-# Celery worker
-cd services/sync && celery -A worker worker --loglevel=info
+# Celery worker + embedded beat scheduler (dev); filing watch needs SEC_USER_AGENT
+cd services/sync && uv run celery -A worker worker -B --loglevel=info
 ```
 
 
