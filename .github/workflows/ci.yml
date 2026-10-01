@@ -27,6 +27,8 @@ jobs:
       - run: npx tsc --noEmit
       # --if-present: the lint script lands with the ESLint setup PR
       - run: npm run lint --if-present
+      # --if-present: the test script (vitest) lands with the outlet-fairness PR
+      - run: npm test --if-present
       - run: npm run build
 
   python:
