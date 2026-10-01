@@ -124,6 +124,9 @@ uv run monolyth-ingest AAPL MSFT --since 2026-01-01
 # Python tests (creates/drops a separate monolyth_test database) — run from repo root
 uv run pytest
 
+# Regenerate shared API types after changing an API route/schema (test_openapi.py fails if stale)
+uv run python apps/api/scripts/export_openapi.py && (cd packages/types && npm run generate)
+
 # Web (Next.js)
 cd apps/web && npm run dev
 
