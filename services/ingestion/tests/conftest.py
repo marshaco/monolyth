@@ -29,7 +29,14 @@ class FakeEdgar:
         if "/Archives/edgar/data/" in url:
             if self.fail_documents:
                 return httpx2.Response(503)
-            return httpx2.Response(200, text=(FIXTURES / "aapl-10q.htm").read_text())
+            name = url.rsplit("/", 1)[-1]
+            fixture = {
+                "0000320193-26-000099-index.htm": "aapl-8k-index.htm",
+                "aapl-20260830.htm": "a8-k-cover.htm",
+                "a8-kex991.htm": "a8-kex991.htm",
+                "a8-kex992.htm": "a8-kex991.htm",
+            }.get(name, "aapl-10q.htm")
+            return httpx2.Response(200, text=(FIXTURES / fixture).read_text())
         return httpx2.Response(404)
 
 
@@ -44,4 +51,4 @@ def edgar():
 def clean_filings():
     yield
     with get_engine().begin() as conn:
-        conn.execute(text("TRUNCATE filings"))
+        conn.execute(text("TRUNCATE filings CASCADE"))

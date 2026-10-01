@@ -57,3 +57,24 @@ def test_rate_limited(edgar):
     for _ in range(4):
         client.document("https://www.sec.gov/Archives/edgar/data/320193/x/doc.htm")
     assert time.monotonic() - start >= 3 / MAX_REQUESTS_PER_SECOND * 0.95
+
+
+def test_parse_filing_index():
+    from pathlib import Path
+
+    from monolyth_ingestion.edgar import parse_filing_index
+
+    docs = parse_filing_index((Path(__file__).parent / "fixtures" / "aapl-8k-index.htm").read_text())
+    base = "https://www.sec.gov/Archives/edgar/data/320193/000032019326000099/"
+    assert [(d.type, d.description, d.url) for d in docs[:4]] == [
+        ("8-K", "8-K", base + "aapl-20260830.htm"),  # /ix?doc= viewer prefix stripped
+        ("EX-99.1", "PRESS RELEASE", base + "a8-kex991.htm"),
+        ("EX-99.2", None, base + "a8-kex992.htm"),
+        ("EX-10.1", "EXHIBIT 10.1", base + "a8-kex101.htm"),
+    ]
+
+
+def test_parse_filing_index_without_table():
+    from monolyth_ingestion.edgar import parse_filing_index
+
+    assert parse_filing_index("<html><body>Not found</body></html>") == []

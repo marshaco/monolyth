@@ -87,7 +87,7 @@ def isolate(monkeypatch):
     monkeypatch.delenv("SUMMARY_MAX_INPUT_TOKENS", raising=False)
     yield
     with get_engine().begin() as conn:
-        conn.execute(text("TRUNCATE filings"))
+        conn.execute(text("TRUNCATE filings CASCADE"))
 
 
 def test_summarizes_with_structured_output():
