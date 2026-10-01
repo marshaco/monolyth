@@ -44,4 +44,4 @@ def edgar():
 def clean_filings():
     yield
     with get_engine().begin() as conn:
-        conn.execute(text("TRUNCATE filings"))
+        conn.execute(text("TRUNCATE filings CASCADE"))

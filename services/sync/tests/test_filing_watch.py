@@ -77,7 +77,8 @@ def test_ingests_each_held_company_once():
 def test_tasks_are_scheduled():
     assert app.conf.beat_schedule["watch-filings"]["task"] == "tasks.watch_filings"
     assert app.conf.beat_schedule["summarize-filings"]["task"] == "tasks.summarize_filings"
-    assert {"tasks.watch_filings", "tasks.summarize_filings"} <= set(app.tasks)
+    assert app.conf.beat_schedule["embed-filings"]["task"] == "tasks.embed_filings"
+    assert {"tasks.watch_filings", "tasks.summarize_filings", "tasks.embed_filings"} <= set(app.tasks)
 
 
 def test_summaries_skip_without_anthropic_credentials(monkeypatch, tmp_path):
@@ -92,14 +93,20 @@ def test_task_runs_and_queues_summaries(monkeypatch):
     queued = []
     monkeypatch.setenv("SEC_USER_AGENT", "monolyth-tests test@example.org")
     monkeypatch.setattr(tasks, "EdgarClient", lambda ua: fake.client())
-    monkeypatch.setattr(tasks.summarize_filings, "delay", lambda: queued.append(1))
+    monkeypatch.setattr(tasks.summarize_filings, "delay", lambda: queued.append("summarize"))
+    monkeypatch.setattr(tasks.embed_filings, "delay", lambda: queued.append("embed"))
     with Session(get_engine()) as session:
         add_holdings(session, "user_a", ["AAPL"])
 
     assert tasks.watch_filings.apply().get() == {"new": 2, "parsed": 2, "errors": 0}
-    assert queued == [1]  # newly parsed filings trigger summarisation
+    assert queued == ["summarize", "embed"]  # newly parsed filings trigger both
 
 
 def test_task_skips_without_sec_contact(monkeypatch):
     monkeypatch.delenv("SEC_USER_AGENT", raising=False)
     assert tasks.watch_filings.apply().get()["skipped"] == 1
+
+
+def test_embeddings_skip_without_openai_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert tasks.embed_filings.apply().get()["skipped"] == 1
