@@ -7,6 +7,7 @@ dependencies = [
     "celery[redis]>=5.4",
     "monolyth-db",
     "monolyth-ingestion",
+    "monolyth-intelligence",
 ]
 
 [tool.uv]
@@ -15,3 +16,4 @@ package = false
 [tool.uv.sources]
 monolyth-db = { workspace = true }
 monolyth-ingestion = { workspace = true }
+monolyth-intelligence = { workspace = true }

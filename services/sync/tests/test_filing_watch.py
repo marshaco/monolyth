@@ -74,19 +74,30 @@ def test_ingests_each_held_company_once():
     assert sum(u.endswith("CIK0000320193.json") for u in fake.urls) == 1
 
 
-def test_task_is_scheduled():
+def test_tasks_are_scheduled():
     assert app.conf.beat_schedule["watch-filings"]["task"] == "tasks.watch_filings"
-    assert "tasks.watch_filings" in app.tasks
+    assert app.conf.beat_schedule["summarize-filings"]["task"] == "tasks.summarize_filings"
+    assert {"tasks.watch_filings", "tasks.summarize_filings"} <= set(app.tasks)
 
 
-def test_task_runs_and_reports_counts(monkeypatch):
+def test_summaries_skip_without_anthropic_credentials(monkeypatch, tmp_path):
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))  # no `ant auth login` profile either
+    assert tasks.summarize_filings.apply().get()["skipped"] == 1
+
+
+def test_task_runs_and_queues_summaries(monkeypatch):
     fake = FakeEdgar()
+    queued = []
     monkeypatch.setenv("SEC_USER_AGENT", "monolyth-tests test@example.org")
     monkeypatch.setattr(tasks, "EdgarClient", lambda ua: fake.client())
+    monkeypatch.setattr(tasks.summarize_filings, "delay", lambda: queued.append(1))
     with Session(get_engine()) as session:
         add_holdings(session, "user_a", ["AAPL"])
 
     assert tasks.watch_filings.apply().get() == {"new": 2, "parsed": 2, "errors": 0}
+    assert queued == [1]  # newly parsed filings trigger summarisation
 
 
 def test_task_skips_without_sec_contact(monkeypatch):

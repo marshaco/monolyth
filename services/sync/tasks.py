@@ -1,5 +1,7 @@
 import logging
 
+import anthropic
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from monolyth_db import Holding, get_engine
 from monolyth_ingestion.config import ConfigError, sec_user_agent
 from monolyth_ingestion.edgar import EdgarClient
 from monolyth_ingestion.ingest import IngestResult, ingest_filings
+from monolyth_intelligence.summarize import has_credentials, summarize_pending
 from worker import app
 
 log = logging.getLogger(__name__)
@@ -44,4 +47,18 @@ def watch_filings() -> dict[str, int]:
 
     with EdgarClient(user_agent) as client, Session(get_engine()) as session:
         result = run_filing_watch(session, client)
+    if result.parsed:
+        summarize_filings.delay()
     return {"new": len(result.new), "parsed": len(result.parsed), "errors": len(result.errors)}
+
+
+@app.task(name="tasks.summarize_filings")
+def summarize_filings() -> dict[str, int]:
+    client = anthropic.Anthropic()
+    if not has_credentials(client):
+        log.warning("filing summaries skipped: no Anthropic credentials (set ANTHROPIC_API_KEY)")
+        return {"summarized": 0, "failed": 0, "retry_later": 0, "skipped": 1}
+    with Session(get_engine()) as session:
+        counts = summarize_pending(session, client)
+    log.info("filing summaries: %s", counts)
+    return counts
