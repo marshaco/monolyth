@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      # --if-present: the lint script lands with the ESLint setup PR
+      - run: npm run lint --if-present
+      - run: npm run build
+
+  python:
+    name: Python (pytest)
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: monolyth
+          POSTGRES_PASSWORD: monolyth
+          POSTGRES_DB: monolyth
+        # Same host port as infra/docker-compose.yml, which the test conftest assumes
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U monolyth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      # Skips cleanly until the uv workspace (root pyproject.toml) exists on the branch
+      - id: workspace
+        run: echo "exists=$([ -f pyproject.toml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - if: steps.workspace.outputs.exists == 'true'
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - if: steps.workspace.outputs.exists == 'true'
+        run: uv sync --all-packages --locked
+      - if: steps.workspace.outputs.exists == 'true'
+        run: uv run pytest
