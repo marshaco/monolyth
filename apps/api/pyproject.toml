@@ -1,0 +1,16 @@
+[project]
+name = "monolyth-api"
+version = "0.1.0"
+description = "monolyth REST API (FastAPI)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "monolyth-db",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+monolyth-db = { workspace = true }
