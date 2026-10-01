@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_LIFT, personalize } from '@/lib/personalize'
+import { MAX_LIFT, MAX_TRUST_LIFT, personalize } from '@/lib/personalize'
 
 const feed = (n: number) =>
   Array.from({ length: n }, (_, i) => ({ id: i, ticker: i % 2 ? 'AAPL' : 'NVDA', source: `outlet${i}.com` }))
@@ -10,6 +10,8 @@ const affinity = (outlets: Record<string, number>, tickers: Record<string, numbe
   outlets,
   tickers,
 })
+
+const trust = (outlets: Record<string, number>) => ({ users: 50, min_users: 5, outlets })
 
 describe('personalize', () => {
   it('leaves the feed alone with no history (cold start)', () => {
@@ -36,11 +38,28 @@ describe('personalize', () => {
     expect(out.findIndex((a) => a.id === 9)).toBe(8)
   })
 
-  it('never moves any article more than MAX_LIFT places either way', () => {
+  it('never moves any article more than MAX_LIFT + MAX_TRUST_LIFT places either way', () => {
     const f = feed(40)
     const favourites = Object.fromEntries(f.filter((a) => a.id % 3 === 0).map((a) => [a.source, 1]))
-    const out = personalize(f, affinity(favourites, { AAPL: 1 }))
-    out.forEach((a, newIndex) => expect(Math.abs(newIndex - a.id)).toBeLessThanOrEqual(MAX_LIFT))
+    const trusted = Object.fromEntries(f.filter((a) => a.id % 4 === 0).map((a) => [a.source, 1]))
+    const out = personalize(f, affinity(favourites, { AAPL: 1 }), trust(trusted))
+    out.forEach((a, newIndex) => expect(Math.abs(newIndex - a.id)).toBeLessThanOrEqual(MAX_LIFT + MAX_TRUST_LIFT))
     expect(new Set(out)).toEqual(new Set(f))
+  })
+
+  it('applies platform trust even for new users, by at most MAX_TRUST_LIFT', () => {
+    const out = personalize(feed(10), null, trust({ 'outlet8.com': 1 }))
+    expect(out.findIndex((a) => a.id === 8)).toBe(8 - MAX_TRUST_LIFT)
+  })
+
+  it('lets personal affinity outweigh platform trust', () => {
+    // The user favours outlet9; the platform trusts outlet8 — the user's preference wins
+    const out = personalize(feed(12), affinity({ 'outlet9.com': 1 }), trust({ 'outlet8.com': 1 }))
+    expect(out.findIndex((a) => a.id === 9)).toBeLessThan(out.findIndex((a) => a.id === 8))
+  })
+
+  it('ignores an empty trust result', () => {
+    const f = feed(5)
+    expect(personalize(f, null, trust({}))).toBe(f)
   })
 })
