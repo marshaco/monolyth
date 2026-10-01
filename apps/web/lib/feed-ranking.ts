@@ -2,14 +2,19 @@
 // personalization (#10) can later re-weight it instead of re-implementing it.
 //
 // Pipeline, applied to date-sorted, de-duplicated articles:
+//   0. orderByReputation:         re-sort by age adjusted for outlet tier (config/outlet-tiers.json)
 //   1. rotateOutlets per ticker:  within each holding, don't repeat an outlet until the others have had a turn
 //   2. interleaveByTicker:        one article per holding in turn, so no holding dominates
 //   3. capOutletsPerWindow:       across the whole feed, at most `cap` articles per outlet in any `window`
+
+import outletTiers from '@/config/outlet-tiers.json'
 
 export type RankableArticle = {
   ticker: string
   source: string
 }
+
+export type DatedArticle = RankableArticle & { pubDate: string }
 
 export const PAGE_SIZE = 12
 export const OUTLET_CAP_PER_PAGE = 2
@@ -82,8 +87,31 @@ export function capOutletsPerWindow<T extends RankableArticle>(
   return out
 }
 
-export function rankFeed<T extends RankableArticle>(articles: T[]): T[] {
-  return capOutletsPerWindow(interleaveByTicker(rotateOutletsWithinTicker(articles)))
+type TierConfig = { tiers: Record<string, { ageBonusHours: number; outlets: string[] }> }
+
+const AGE_BONUS_HOURS: ReadonlyMap<string, number> = new Map(
+  Object.values((outletTiers as TierConfig).tiers).flatMap((tier) =>
+    tier.outlets.map((outlet) => [outlet, tier.ageBonusHours] as const),
+  ),
+)
+
+export function outletAgeBonusHours(source: string): number {
+  return AGE_BONUS_HOURS.get(outletKey(source)) ?? 0
+}
+
+// Stable sort by publish time shifted by the outlet's tier bonus: a Tier 1 story 10h old ranks
+// beside a 2h-old unlisted one. Because this only reorders, every outlet's articles stay in the
+// feed, and the later rotation and per-page cap still keep any one outlet from dominating.
+export function orderByReputation<T extends DatedArticle>(articles: T[]): T[] {
+  const effective = (a: T) => new Date(a.pubDate).getTime() + outletAgeBonusHours(a.source) * 3_600_000
+  return articles
+    .map((a, i) => ({ a, i, t: effective(a) }))
+    .sort((x, y) => y.t - x.t || x.i - y.i)
+    .map(({ a }) => a)
+}
+
+export function rankFeed<T extends DatedArticle>(articles: T[]): T[] {
+  return capOutletsPerWindow(interleaveByTicker(rotateOutletsWithinTicker(orderByReputation(articles))))
 }
 
 export type FeedDistribution = {
