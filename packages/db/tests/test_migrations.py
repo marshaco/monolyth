@@ -14,11 +14,11 @@ def test_migrations_round_trip():
 
     command.upgrade(cfg, "head")
     with engine.connect() as conn:
-        assert {"users", "holdings"} <= set(inspect(conn).get_table_names())
+        assert {"users", "holdings", "filings"} <= set(inspect(conn).get_table_names())
         assert conn.scalar(text("SELECT 1 FROM pg_extension WHERE extname = 'vector'")) == 1
 
     command.downgrade(cfg, "base")
     with engine.connect() as conn:
-        assert not {"users", "holdings"} & set(inspect(conn).get_table_names())
+        assert not {"users", "holdings", "filings"} & set(inspect(conn).get_table_names())
 
     command.upgrade(cfg, "head")
