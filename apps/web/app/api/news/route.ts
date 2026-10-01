@@ -38,6 +38,15 @@ const PAYWALLED_DOMAINS = [
   'telegraph.co.uk',    // The Telegraph
   'theinformation.com', // The Information
   'investors.com',      // Investor's Business Daily
+  // Metered or mostly-premium: a few free reads, then a wall
+  'theglobeandmail.com',
+  'seekingalpha.com',
+  'forbes.com',
+  'marketwatch.com',
+  'businessinsider.com',
+  'fortune.com',
+  'nytimes.com',
+  'washingtonpost.com',
 ]
 
 function isPaywalledDomain(hostname: string): boolean {
