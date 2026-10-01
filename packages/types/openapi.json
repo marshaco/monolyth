@@ -1,6 +1,72 @@
 {
   "components": {
     "schemas": {
+      "Affinity": {
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "half_life_days": {
+            "title": "Half Life Days",
+            "type": "integer"
+          },
+          "outlets": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Outlets",
+            "type": "object"
+          },
+          "personalised": {
+            "title": "Personalised",
+            "type": "boolean"
+          },
+          "tickers": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Tickers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "events",
+          "half_life_days",
+          "personalised",
+          "outlets",
+          "tickers"
+        ],
+        "title": "Affinity",
+        "type": "object"
+      },
+      "EngagementIn": {
+        "properties": {
+          "article_url": {
+            "format": "uri",
+            "minLength": 1,
+            "title": "Article Url",
+            "type": "string"
+          },
+          "outlet": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Outlet",
+            "type": "string"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "article_url",
+          "outlet",
+          "ticker"
+        ],
+        "title": "EngagementIn",
+        "type": "object"
+      },
       "FilingOut": {
         "properties": {
           "company_name": {
@@ -298,6 +364,62 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/engagement": {
+      "post": {
+        "operationId": "record_v1_engagement_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EngagementIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/v1/engagement/affinity": {
+      "get": {
+        "description": "The current user's outlet and ticker preferences, from time-decayed clicks.\nAlso serves as the debugging view of what personalisation is acting on.",
+        "operationId": "affinity_v1_engagement_affinity_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Affinity"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Affinity",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
     "/v1/filings": {
       "get": {
         "description": "Recent filings for companies the current user holds, newest first. By default only\nfilings that already have a summary, since those are the ones worth showing.",
