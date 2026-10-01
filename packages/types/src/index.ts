@@ -8,3 +8,4 @@ type Schemas = components['schemas']
 
 export type Holding = Schemas['HoldingOut']
 export type HoldingCreate = Schemas['HoldingIn']
+export type FilingSummary = Schemas['FilingOut']
