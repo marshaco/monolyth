@@ -12,6 +12,7 @@ export type Article = {
   source: string
   blurb?: string
   imageUrl?: string
+  isPaywalled?: boolean
 }
 
 const STORAGE_KEY = 'monolyth_holdings'

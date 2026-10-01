@@ -1,0 +1,14 @@
+[project]
+name = "monolyth-db"
+version = "0.1.0"
+description = "Shared SQLAlchemy models, Alembic migrations and DB session for monolyth"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "alembic>=1.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
