@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
+
+const MAX_REDIRECTS = 3
 
 const OG_PATTERNS = [
   /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
@@ -31,8 +35,8 @@ async function extractOgImage(url: string): Promise<string | undefined> {
   const timeout = setTimeout(() => controller.abort(), 6000)
 
   try {
-    const res = await fetch(url, { signal: controller.signal, headers: HEADERS })
-    if (!res.ok || !res.body) return undefined
+    const res = await safeFetch(url, controller.signal)
+    if (!res || !res.ok || !res.body) return undefined
 
     // Read until </head> or 200KB — Yahoo Finance and similar Next.js sites
     // have large <head> sections (inline scripts) before the og:image meta tag
@@ -74,6 +78,59 @@ async function extractOgImage(url: string): Promise<string | undefined> {
   } finally {
     clearTimeout(timeout)
   }
+}
+
+// The URL comes from the client, so only fetch public http(s) hosts — and
+// re-check every redirect hop, since a public URL can redirect to an internal one.
+async function safeFetch(url: string, signal: AbortSignal): Promise<Response | undefined> {
+  let current = url
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (!(await isPublicHttpUrl(current))) return undefined
+    const res = await fetch(current, { signal, headers: HEADERS, redirect: 'manual' })
+    const location = res.headers.get('location')
+    if (res.status < 300 || res.status >= 400 || !location) return res
+    current = new URL(location, current).href
+  }
+  return undefined
+}
+
+async function isPublicHttpUrl(raw: string): Promise<boolean> {
+  let url: URL
+  try { url = new URL(raw) } catch { return false }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+
+  const host = url.hostname.replace(/^\[|\]$/g, '')
+  try {
+    const addrs = isIP(host) ? [{ address: host }] : await lookup(host, { all: true })
+    return addrs.length > 0 && addrs.every(({ address }) => !isPrivateAddress(address))
+  } catch {
+    return false
+  }
+}
+
+function isPrivateAddress(addr: string): boolean {
+  const ip = addr.toLowerCase()
+  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+  if (mapped) return isPrivateAddress(mapped[1])
+
+  if (isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number)
+    return (
+      a === 0 || a === 10 || a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a >= 224
+    )
+  }
+
+  return (
+    ip === '::' || ip === '::1' ||
+    /^f[cd]/.test(ip) ||        // fc00::/7 unique local
+    /^fe[89ab]/.test(ip) ||     // fe80::/10 link-local
+    ip.startsWith('::ffff:')    // hex-form v4-mapped — reject rather than decode
+  )
 }
 
 function resolve(raw: string, base: string): string {
