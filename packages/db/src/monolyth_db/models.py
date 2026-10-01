@@ -107,3 +107,20 @@ class FilingChunk(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     filing: Mapped[Filing] = relationship()
+
+
+class ArticleEngagement(Base):
+    """One user interaction with a news article (currently: opening it). Raw events; affinities
+    are computed from them with time decay, so preferences can shift (#10)."""
+
+    __tablename__ = "article_engagement"
+    __table_args__ = (Index("ix_article_engagement_user_created", "user_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(String(16), default="click")
+    article_url: Mapped[str] = mapped_column(String(2048))
+    # Registrable domain (outletKey in apps/web/lib/feed-ranking.ts), e.g. "yahoo.com"
+    outlet: Mapped[str] = mapped_column(String(255))
+    ticker: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -4,6 +4,44 @@
  */
 
 export interface paths {
+    "/v1/engagement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record */
+        post: operations["record_v1_engagement_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/engagement/affinity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Affinity
+         * @description The current user's outlet and ticker preferences, from time-decayed clicks.
+         *     Also serves as the debugging view of what personalisation is acting on.
+         */
+        get: operations["affinity_v1_engagement_affinity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/filings": {
         parameters: {
             query?: never;
@@ -102,6 +140,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Affinity */
+        Affinity: {
+            /** Events */
+            events: number;
+            /** Half Life Days */
+            half_life_days: number;
+            /** Outlets */
+            outlets: {
+                [key: string]: number;
+            };
+            /** Personalised */
+            personalised: boolean;
+            /** Tickers */
+            tickers: {
+                [key: string]: number;
+            };
+        };
+        /** EngagementIn */
+        EngagementIn: {
+            /**
+             * Article Url
+             * Format: uri
+             */
+            article_url: string;
+            /** Outlet */
+            outlet: string;
+            /** Ticker */
+            ticker: string;
+        };
         /** FilingOut */
         FilingOut: {
             /** Company Name */
@@ -202,6 +269,57 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    record_v1_engagement_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngagementIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    affinity_v1_engagement_affinity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Affinity"];
+                };
+            };
+        };
+    };
     list_filings_v1_filings_get: {
         parameters: {
             query?: {

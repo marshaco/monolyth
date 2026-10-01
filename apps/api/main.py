@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from routers import filings, health, holdings, search
+from routers import engagement, filings, health, holdings, search
 
 app = FastAPI(title="monolyth API", version="0.1.0")
 
@@ -9,3 +9,4 @@ app.include_router(health.router, prefix="/v1")
 app.include_router(holdings.router, prefix="/v1")
 app.include_router(filings.router, prefix="/v1")
 app.include_router(search.router, prefix="/v1")
+app.include_router(engagement.router, prefix="/v1")
