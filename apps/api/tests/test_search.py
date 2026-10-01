@@ -54,9 +54,17 @@ def test_query_validation(client, fake_openai):
     assert client.get("/v1/search").status_code == 422
     assert client.get("/v1/search", params={"q": "x"}).status_code == 422
     assert client.get("/v1/search", params={"q": "ok query", "k": 26}).status_code == 422
+    assert client.get("/v1/search", params={"q": "ok query", "min_score": 1.5}).status_code == 422
 
 
 def test_unconfigured_search_is_503(client, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     res = client.get("/v1/search", params={"q": "margin"})
     assert res.status_code == 503 and "OPENAI_API_KEY" in res.json()["detail"]
+
+
+def test_unrelated_passages_are_filtered_out(client, fake_openai):
+    client.post("/v1/holdings", json={"ticker": "AAPL"})
+    add_embedded_filing(fake_openai, "a", "AAPL", "Gross margin pressure rose because of tariffs.")
+    assert client.get("/v1/search", params={"q": "zebra unicorn"}).json() == []
+    assert len(client.get("/v1/search", params={"q": "zebra unicorn", "min_score": 0}).json()) == 1
