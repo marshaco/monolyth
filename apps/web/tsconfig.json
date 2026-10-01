@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@monolyth/types": ["../../packages/types/src"]
     }
   },
   "include": [
