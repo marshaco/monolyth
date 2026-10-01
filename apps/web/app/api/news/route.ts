@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Parser from 'rss-parser'
+import { feedDistribution, rankFeed } from '@/lib/feed-ranking'
 
 type FeedItem = {
   title?: string
@@ -98,27 +99,13 @@ export async function GET(req: NextRequest) {
       return true
     })
 
-  return NextResponse.json({ articles: interleaveByTicker(deduped) })
-}
-
-// Round-robin across tickers so one busy holding can't fill the top of the feed.
-// Input must be date-sorted; groups are ordered by their newest article.
-function interleaveByTicker(articles: ArticleResult[]): ArticleResult[] {
-  const groups = new Map<string, ArticleResult[]>()
-  for (const a of articles) {
-    const group = groups.get(a.ticker)
-    if (group) group.push(a)
-    else groups.set(a.ticker, [a])
-  }
-
-  const queues = [...groups.values()]
-  const out: ArticleResult[] = []
-  for (let i = 0; out.length < articles.length; i++) {
-    for (const q of queues) {
-      if (i < q.length) out.push(q[i])
-    }
-  }
-  return out
+  const articles = rankFeed(deduped)
+  const distribution = feedDistribution(articles)
+  console.info(
+    `[news] ${articles.length} articles, ${distribution.outlets} outlets on page 1, ` +
+      `top ${distribution.topOutlet} ${(distribution.topOutletShare * 100).toFixed(0)}%`,
+  )
+  return NextResponse.json({ articles, distribution })
 }
 
 async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> {
