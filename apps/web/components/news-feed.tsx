@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { ExternalLink, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Article } from '@/app/page'
+import { recordClick } from '@/lib/engagement-api'
 
 interface Props {
   articles: Article[]
@@ -45,6 +46,9 @@ function NewsCard({ article, index }: { article: Article; index: number }) {
       href={article.link}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={() => recordClick(article)}
+      // Middle-click opens in a new tab without firing onClick
+      onAuxClick={(e) => { if (e.button === 1) recordClick(article) }}
       className="group flex flex-col bg-card border border-border hover:border-primary/40 rounded-xl overflow-hidden transition-colors"
       style={{
         animation: 'fade-slide-in 0.35s ease-out both',

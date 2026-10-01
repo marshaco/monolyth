@@ -6,6 +6,8 @@ import NewsFeed from '@/components/news-feed'
 import FilingsPanel from '@/components/filings-panel'
 import FilingSearch from '@/components/filing-search'
 import { useHoldings } from '@/lib/use-holdings'
+import { getAffinity } from '@/lib/engagement-api'
+import { personalize } from '@/lib/personalize'
 
 export type Article = {
   ticker: string
@@ -32,13 +34,15 @@ export default function Home() {
   useEffect(() => {
     if (!ready || !tickerKey) return
     let cancelled = false
-    fetch(`/api/news?tickers=${tickerKey}`)
+    const news: Promise<Article[]> = fetch(`/api/news?tickers=${tickerKey}`)
       .then((res) => res.json())
       .then((data) => data.articles ?? [])
       .catch(() => [])
-      .then((articles: Article[]) => {
-        if (!cancelled) setResult({ key: fetchKey, articles })
-      })
+    // Fetched with each feed load, so clicks since the last load count. No affinity = baseline order.
+    const affinity = getAffinity().catch(() => null)
+    Promise.all([news, affinity]).then(([articles, aff]) => {
+      if (!cancelled) setResult({ key: fetchKey, articles: personalize(articles, aff) })
+    })
     return () => { cancelled = true }
   }, [ready, tickerKey, fetchKey])
 
