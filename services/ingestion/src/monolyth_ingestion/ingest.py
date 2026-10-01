@@ -14,6 +14,10 @@ log = logging.getLogger(__name__)
 
 # The filings CLAUDE.md scopes for retail-investor summaries
 DEFAULT_FORMS = frozenset({"10-K", "10-Q", "8-K"})
+# An 8-K's cover document is mostly boilerplate ("Item 2.02 ... see Exhibit 99.1"); the substance,
+# usually the press release, is in its EX-99 exhibits, so those are appended to its text
+EXHIBIT_FORMS = frozenset({"8-K"})
+EXHIBIT_TYPE_PREFIX = "EX-99"
 DEFAULT_LOOKBACK = timedelta(days=90)
 
 
@@ -84,10 +88,21 @@ def _parse_pending(session: Session, client: EdgarClient, tickers: list[str], re
     )
     for filing in pending:
         try:
-            filing.text = filing_text(client.document(filing.document_url))
+            filing.text = _filing_full_text(client, filing)
             filing.parsed_at = datetime.now(UTC)
             session.commit()
             result.parsed.append(filing.accession_number)
         except httpx2.HTTPError as e:
             session.rollback()
             result.errors.append(f"{filing.accession_number}: {e}")
+
+
+def _filing_full_text(client: EdgarClient, filing: Filing) -> str:
+    parts = [filing_text(client.document(filing.document_url))]
+    if filing.form in EXHIBIT_FORMS:
+        for exhibit in client.exhibits(filing.cik, filing.accession_number):
+            if exhibit.type.startswith(EXHIBIT_TYPE_PREFIX) and exhibit.url != filing.document_url:
+                label = exhibit.type.removeprefix("EX-")
+                heading = f"Exhibit {label}" + (f": {exhibit.description}" if exhibit.description else "")
+                parts.append(f"{heading}\n{filing_text(client.document(exhibit.url))}")
+    return "\n\n".join(parts)

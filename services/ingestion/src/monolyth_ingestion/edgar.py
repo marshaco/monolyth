@@ -7,12 +7,16 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import date
+from urllib.parse import urljoin
 
 import httpx2
+from bs4 import BeautifulSoup
 
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{document}"
+# Human-readable filing index; its document table is the only place that gives each exhibit's type
+INDEX_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession_nodash}/{accession}-index.htm"
 
 # SEC's fair-access limit is 10 requests/second per client
 MAX_REQUESTS_PER_SECOND = 10
@@ -33,6 +37,38 @@ class FilingRef:
     report_date: date | None
     document_url: str
     description: str | None
+
+
+@dataclass(frozen=True)
+class Exhibit:
+    type: str  # e.g. "EX-99.1"
+    description: str | None
+    url: str
+
+
+def parse_filing_index(html: str) -> list[Exhibit]:
+    """Documents listed in a filing index page's "Document Format Files" table
+    (columns: Seq, Description, Document, Type, Size)."""
+    soup = BeautifulSoup(html, "lxml")
+    table = soup.find("table", class_="tableFile")
+    if table is None:
+        return []
+    out = []
+    for row in table.find_all("tr")[1:]:
+        cells = row.find_all("td")
+        link = cells[2].find("a") if len(cells) >= 4 else None
+        if link is None or not link.get("href"):
+            continue
+        # Inline-XBRL documents link through the viewer: /ix?doc=/Archives/...
+        href = link["href"].removeprefix("/ix?doc=")
+        out.append(
+            Exhibit(
+                type=cells[3].get_text(strip=True),
+                description=cells[1].get_text(strip=True) or None,
+                url=urljoin("https://www.sec.gov/", href),
+            )
+        )
+    return out
 
 
 class EdgarClient:
@@ -106,3 +142,9 @@ class EdgarClient:
 
     def document(self, url: str) -> str:
         return self._get(url).text
+
+    def exhibits(self, cik: int, accession_number: str) -> list[Exhibit]:
+        url = INDEX_URL.format(
+            cik=cik, accession_nodash=accession_number.replace("-", ""), accession=accession_number
+        )
+        return parse_filing_index(self._get(url).text)

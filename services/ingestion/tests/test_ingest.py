@@ -58,3 +58,35 @@ def test_failed_document_fetch_is_retried_next_run(edgar):
         fake.fail_documents = False
         second = ingest_filings(session, client, ["AAPL"], since=SINCE)
         assert second.new == [] and len(second.parsed) == 2
+
+
+def test_8k_text_includes_ex99_exhibits(edgar):
+    fake, client = edgar
+    with Session(get_engine()) as session:
+        ingest_filings(session, client, ["AAPL"], since=SINCE)
+        text = stored(session)["0000320193-26-000099"].text
+
+    assert text.splitlines() == [
+        "Item 2.02 Results of Operations and Financial Condition.",
+        "See Exhibit 99.1.",
+        "",
+        "Exhibit 99.1: PRESS RELEASE",
+        "Apple reports fourth quarter results",
+        "Revenue of $102.5 billion, up 6 percent year over year.",
+        "",
+        "Exhibit 99.2",
+        "Apple reports fourth quarter results",
+        "Revenue of $102.5 billion, up 6 percent year over year.",
+    ]
+    urls = [str(r.url) for r in fake.requests]
+    assert not any(u.endswith("a8-kex101.htm") for u in urls)  # EX-10.1 isn't fetched
+
+
+def test_10q_does_not_fetch_the_filing_index(edgar):
+    fake, client = edgar
+    with Session(get_engine()) as session:
+        ingest_filings(session, client, ["AAPL"], since=SINCE)
+    index_requests = [str(r.url) for r in fake.requests if str(r.url).endswith("-index.htm")]
+    assert index_requests == [
+        "https://www.sec.gov/Archives/edgar/data/320193/000032019326000099/0000320193-26-000099-index.htm"
+    ]
