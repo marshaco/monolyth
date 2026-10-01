@@ -343,6 +343,7 @@ export interface operations {
             query: {
                 q: string;
                 k?: number;
+                min_score?: number;
             };
             header?: never;
             path?: never;

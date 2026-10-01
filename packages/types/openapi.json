@@ -509,6 +509,18 @@
               "title": "K",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "min_score",
+            "required": false,
+            "schema": {
+              "default": 0.2,
+              "maximum": 1,
+              "minimum": 0,
+              "title": "Min Score",
+              "type": "number"
+            }
           }
         ],
         "responses": {
