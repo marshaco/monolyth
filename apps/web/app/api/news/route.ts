@@ -77,7 +77,9 @@ export async function GET(req: NextRequest) {
   if (tickers.length === 0) return NextResponse.json({ articles: [] })
 
   const results = await Promise.allSettled(
-    tickers.map((ticker) => fetchFeed(bingNewsUrl(ticker), ticker))
+    tickers.map(async (ticker) =>
+      Promise.all((await fetchFeed(bingNewsUrl(ticker), ticker)).map(resolveMsnArticle)),
+    ),
   )
 
   const seenLinks = new Set<string>()
@@ -147,6 +149,48 @@ async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> 
     })
   } catch {
     return []
+  }
+}
+
+// MSN pages are client-rendered shells with no og:image, and most MSN stories are
+// syndicated. MSN's content API (undocumented, used by its own frontend) returns the
+// original publisher's URL and the article images, so we link to the publisher instead.
+// Any failure falls back to the MSN article unchanged.
+const MSN_ARTICLE = /^\/([a-z]{2}-[a-z]{2})\/.*\/ar-([A-Za-z0-9]+)/
+
+type MsnDetail = {
+  sourceHref?: string
+  imageResources?: { url?: string }[]
+}
+
+async function resolveMsnArticle(article: ArticleResult): Promise<ArticleResult> {
+  if (article.source !== 'msn.com') return article
+
+  let locale: string, id: string
+  try {
+    const match = new URL(article.link).pathname.match(MSN_ARTICLE)
+    if (!match) return article
+    ;[, locale, id] = match
+  } catch {
+    return article
+  }
+
+  try {
+    const res = await fetch(`https://assets.msn.com/content/view/v2/Detail/${locale}/${id}`, {
+      next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(4000),
+    })
+    if (!res.ok) return article
+    const detail: MsnDetail = await res.json()
+
+    const imageUrl = article.imageUrl ?? detail.imageResources?.find((r) => r.url)?.url
+    const original = detail.sourceHref?.startsWith('http') ? detail.sourceHref : undefined
+    if (!original) return { ...article, imageUrl }
+
+    const source = extractDomain(original)
+    return { ...article, link: original, source, imageUrl, isPaywalled: isPaywalledDomain(source) }
+  } catch {
+    return article
   }
 }
 
