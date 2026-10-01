@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/v1/filings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Filings
+         * @description Recent filings for companies the current user holds, newest first. By default only
+         *     filings that already have a summary, since those are the ones worth showing.
+         */
+        get: operations["list_filings_v1_filings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -60,6 +81,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** FilingOut */
+        FilingOut: {
+            /** Company Name */
+            company_name: string;
+            /** Document Url */
+            document_url: string;
+            /**
+             * Filed On
+             * Format: date
+             */
+            filed_on: string;
+            /** Form */
+            form: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Report Date */
+            report_date: string | null;
+            /** Summary */
+            summary: string | null;
+            /** Summary Headline */
+            summary_headline: string | null;
+            /** Ticker */
+            ticker: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -116,6 +164,38 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_filings_v1_filings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                summarized_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_v1_health_get: {
         parameters: {
             query?: never;
