@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import HoldingsSidebar from '@/components/holdings-sidebar'
 import NewsFeed from '@/components/news-feed'
-import { useLocalStorage } from '@/lib/use-local-storage'
+import { useHoldings } from '@/lib/use-holdings'
 
 export type Article = {
   ticker: string
@@ -16,10 +16,9 @@ export type Article = {
   isPaywalled?: boolean
 }
 
-const STORAGE_KEY = 'monolyth_holdings'
-
 export default function Home() {
-  const [tickers, setTickers, ready] = useLocalStorage<string[]>(STORAGE_KEY, [])
+  const { tickers, status, error, dismissError, setTickers, retry } = useHoldings()
+  const ready = status === 'ready'
   const [refreshCount, setRefreshCount] = useState(0)
   const [result, setResult] = useState<{ key: string; articles: Article[] } | null>(null)
 
@@ -44,7 +43,18 @@ export default function Home() {
   const loading = tickerKey !== '' && result?.key !== fetchKey
   const articles = tickerKey && result ? result.articles : []
 
-  if (!ready) return null
+  if (status === 'loading') return null
+
+  if (status === 'unreachable') {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-background text-muted-foreground">
+        <p className="text-sm">Couldn&apos;t reach the monolyth API. Is it running? (<code>./dev.sh</code> starts it)</p>
+        <button onClick={retry} className="text-xs text-primary hover:underline">
+          Try again
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -61,6 +71,12 @@ export default function Home() {
             </button>
           )}
         </div>
+        {error && (
+          <div className="mb-4 flex items-center justify-between rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <span>{error}</span>
+            <button onClick={dismissError} aria-label="Dismiss" className="hover:opacity-70">✕</button>
+          </div>
+        )}
         <NewsFeed articles={articles} loading={loading} tickers={tickers} />
       </main>
     </div>
