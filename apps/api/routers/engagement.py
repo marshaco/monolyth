@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
@@ -18,6 +19,11 @@ HALF_LIFE_DAYS = 14
 WINDOW_DAYS = 90
 # Below this many (decayed) events there's too little signal to personalise on
 MIN_EVENTS = 5
+# Platform trust: an outlet needs this many distinct readers before it gets any trust score,
+# so a handful of users (or one determined one) can't move everyone's feed
+MIN_TRUST_USERS = 5
+# Trust is recomputed at most this often per API process; it moves slowly by design
+TRUST_CACHE_SECONDS = 3600
 
 Outlet = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=255)]
 
@@ -81,3 +87,52 @@ def affinity(user: CurrentUser, session: DbSession) -> Affinity:
         outlets=_scaled(outlets),
         tickers=_scaled(tickers),
     )
+
+
+class OutletTrust(BaseModel):
+    # Distinct users with any engagement in the window
+    users: int
+    min_users: int
+    # Outlets read by at least `min_users` people, scaled so the most trusted is 1.0
+    outlets: dict[str, float]
+
+
+_trust_cache: tuple[float, OutletTrust] | None = None
+
+
+def compute_outlet_trust(session, now: datetime | None = None) -> OutletTrust:
+    """Platform-wide outlet trust from everyone's decayed clicks (#13).
+
+    Each user gets exactly one vote, split across outlets in proportion to their own decayed
+    clicks. So heavy clickers count the same as light ones, and click floods only redistribute
+    one person's vote. Outlets read by fewer than MIN_TRUST_USERS people get no score."""
+    now = now or datetime.now(UTC)
+    rows = session.execute(
+        select(ArticleEngagement.user_id, ArticleEngagement.outlet, ArticleEngagement.created_at).where(
+            ArticleEngagement.created_at >= now - timedelta(days=WINDOW_DAYS)
+        )
+    ).all()
+
+    per_user: dict = defaultdict(lambda: defaultdict(float))
+    for user_id, outlet, created_at in rows:
+        per_user[user_id][outlet] += 0.5 ** ((now - created_at).total_seconds() / 86400 / HALF_LIFE_DAYS)
+
+    votes: dict[str, float] = defaultdict(float)
+    readers: dict[str, int] = defaultdict(int)
+    for outlets in per_user.values():
+        total = sum(outlets.values())
+        for outlet, weight in outlets.items():
+            votes[outlet] += weight / total
+            readers[outlet] += 1
+
+    eligible = {o: v for o, v in votes.items() if readers[o] >= MIN_TRUST_USERS}
+    return OutletTrust(users=len(per_user), min_users=MIN_TRUST_USERS, outlets=_scaled(eligible))
+
+
+@router.get("/outlet-trust")
+def outlet_trust(user: CurrentUser, session: DbSession) -> OutletTrust:
+    """Platform-wide outlet trust, cached per process for TRUST_CACHE_SECONDS."""
+    global _trust_cache
+    if _trust_cache is None or time.monotonic() - _trust_cache[0] > TRUST_CACHE_SECONDS:
+        _trust_cache = (time.monotonic(), compute_outlet_trust(session))
+    return _trust_cache[1]

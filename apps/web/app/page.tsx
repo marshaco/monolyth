@@ -7,7 +7,7 @@ import MissedFeed from '@/components/missed-feed'
 import FilingsPanel from '@/components/filings-panel'
 import FilingSearch from '@/components/filing-search'
 import { useHoldings } from '@/lib/use-holdings'
-import { getAffinity } from '@/lib/engagement-api'
+import { getAffinity, getOutletTrust } from '@/lib/engagement-api'
 import { personalize } from '@/lib/personalize'
 import { lowEngagementTickers, missedArticles } from '@/lib/missed'
 import type { EngagementAffinity } from '@monolyth/types'
@@ -45,8 +45,9 @@ export default function Home() {
       .catch(() => [])
     // Fetched with each feed load, so clicks since the last load count. No affinity = baseline order.
     const affinity = getAffinity().catch(() => null)
-    Promise.all([news, affinity]).then(([articles, aff]) => {
-      if (!cancelled) setResult({ key: fetchKey, articles: personalize(articles, aff), affinity: aff })
+    const trust = getOutletTrust().catch(() => null)
+    Promise.all([news, affinity, trust]).then(([articles, aff, tr]) => {
+      if (!cancelled) setResult({ key: fetchKey, articles: personalize(articles, aff, tr), affinity: aff })
     })
     return () => { cancelled = true }
   }, [ready, tickerKey, fetchKey])

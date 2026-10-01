@@ -1,8 +1,10 @@
-import type { EngagementAffinity } from '@monolyth/types'
+import type { EngagementAffinity, OutletTrust } from '@monolyth/types'
 import { request } from '@/lib/holdings-api'
 import { outletKey } from '@/lib/feed-ranking'
 
 export const getAffinity = () => request<EngagementAffinity>('/api/v1/engagement/affinity')
+
+export const getOutletTrust = () => request<OutletTrust>('/api/v1/engagement/outlet-trust')
 
 // Fire-and-forget: `keepalive` lets the request finish even as the click opens the article.
 // Tracking must never get in the way of reading, so failures are ignored.
