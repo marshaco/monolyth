@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import Parser from 'rss-parser'
 
-type PolygonArticle = {
-  title: string
-  article_url: string
-  image_url?: string
-  description?: string
-  published_utc: string
-  tickers?: string[]
-  publisher: {
-    name: string
-    favicon_url?: string
-  }
-}
-
-type PolygonResponse = {
-  results: PolygonArticle[]
-  status: string
-  next_url?: string
+type FeedItem = {
+  title?: string
+  link?: string
+  pubDate?: string
+  contentSnippet?: string
+  enclosure?: { url?: string; type?: string }
+  mediaContent?: { $?: { url?: string; medium?: string } }
 }
 
 type ArticleResult = {
@@ -27,6 +18,30 @@ type ArticleResult = {
   source: string
   blurb?: string
   imageUrl?: string
+  isPaywalled: boolean
+}
+
+const parser = new Parser<object, FeedItem>({
+  customFields: { item: [['media:content', 'mediaContent']] },
+})
+
+// Matched against the article's hostname, including subdomains (e.g. markets.ft.com)
+const PAYWALLED_DOMAINS = [
+  'ft.com',             // Financial Times
+  'wsj.com',            // The Wall Street Journal
+  'barrons.com',        // Barron's
+  'bloomberg.com',      // Bloomberg
+  'economist.com',      // The Economist
+  'reuters.com',        // Reuters
+  'thetimes.com',       // The Times
+  'thetimes.co.uk',     // The Times (legacy domain)
+  'telegraph.co.uk',    // The Telegraph
+  'theinformation.com', // The Information
+  'investors.com',      // Investor's Business Daily
+]
+
+function isPaywalledDomain(hostname: string): boolean {
+  return PAYWALLED_DOMAINS.some((d) => hostname === d || hostname.endsWith(`.${d}`))
 }
 
 const STOP_WORDS = new Set([
@@ -35,12 +50,24 @@ const STOP_WORDS = new Set([
   'with', 'has', 'have', 'had', 'says', 'said', 'after', 'over',
 ])
 
-export async function GET(req: NextRequest) {
-  const apiKey = process.env.POLYGON_API_KEY
-  if (!apiKey || apiKey === 'your_polygon_api_key_here') {
-    return NextResponse.json({ error: 'POLYGON_API_KEY not configured' }, { status: 500 })
-  }
+function bingNewsUrl(ticker: string) {
+  const q = encodeURIComponent(`${ticker} stock`)
+  return `https://www.bing.com/news/search?q=${q}&format=rss`
+}
 
+// Bing redirect links embed the real article URL as a `url=` query param.
+// Extracting it gives us the actual article URL for og:image scraping.
+function extractRealUrl(bingLink: string): string {
+  try {
+    const url = new URL(bingLink)
+    const real = url.searchParams.get('url')
+    return real ? decodeURIComponent(real) : bingLink
+  } catch {
+    return bingLink
+  }
+}
+
+export async function GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('tickers') ?? ''
   const tickers = raw
     .split(',')
@@ -49,54 +76,86 @@ export async function GET(req: NextRequest) {
 
   if (tickers.length === 0) return NextResponse.json({ articles: [] })
 
-  const url = new URL('https://api.polygon.io/v2/reference/news')
-  url.searchParams.set('ticker.any_of', tickers.join(','))
-  url.searchParams.set('limit', '50')
-  url.searchParams.set('order', 'desc')
-  url.searchParams.set('sort', 'published_utc')
-  url.searchParams.set('apiKey', apiKey)
-
-  const res = await fetch(url.toString(), {
-    next: { revalidate: 600 },
-    signal: AbortSignal.timeout(8000),
-  })
-
-  if (!res.ok) {
-    const body = await res.text()
-    return NextResponse.json({ error: `Polygon error ${res.status}: ${body}` }, { status: 502 })
-  }
-
-  const data: PolygonResponse = await res.json()
+  const results = await Promise.allSettled(
+    tickers.map((ticker) => fetchFeed(bingNewsUrl(ticker), ticker))
+  )
 
   const seenLinks = new Set<string>()
   const seenTitleKeys = new Set<string>()
 
-  const articles: ArticleResult[] = (data.results ?? [])
-    .filter((article) => {
-      if (!article.article_url || seenLinks.has(article.article_url)) return false
-      seenLinks.add(article.article_url)
-      const key = titleKey(article.title)
+  const deduped = results
+    .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
+    .flatMap((r) => r.value)
+    .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
+    .filter((a) => {
+      if (!a.link || seenLinks.has(a.link)) return false
+      seenLinks.add(a.link)
+      const key = titleKey(a.title)
       if (key && seenTitleKeys.has(key)) return false
       if (key) seenTitleKeys.add(key)
       return true
     })
-    .map((article) => {
-      // Tag with the first matching ticker from the user's holdings;
-      // fall back to the first ticker Polygon tagged if none overlap
-      const matchedTicker =
-        tickers.find((t) => article.tickers?.includes(t)) ?? article.tickers?.[0] ?? tickers[0]
+
+  return NextResponse.json({ articles: interleaveByTicker(deduped) })
+}
+
+// Round-robin across tickers so one busy holding can't fill the top of the feed.
+// Input must be date-sorted; groups are ordered by their newest article.
+function interleaveByTicker(articles: ArticleResult[]): ArticleResult[] {
+  const groups = new Map<string, ArticleResult[]>()
+  for (const a of articles) {
+    const group = groups.get(a.ticker)
+    if (group) group.push(a)
+    else groups.set(a.ticker, [a])
+  }
+
+  const queues = [...groups.values()]
+  const out: ArticleResult[] = []
+  for (let i = 0; out.length < articles.length; i++) {
+    for (const q of queues) {
+      if (i < q.length) out.push(q[i])
+    }
+  }
+  return out
+}
+
+async function fetchFeed(url: string, ticker: string): Promise<ArticleResult[]> {
+  try {
+    const res = await fetch(url, {
+      next: { revalidate: 600 },
+      signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RSS reader)' },
+    })
+    if (!res.ok) return []
+    const xml = await res.text()
+    const feed = await parser.parseString(xml)
+    return feed.items.map((item): ArticleResult => {
+      const link = extractRealUrl(item.link ?? '')
+      const source = extractDomain(link)
       return {
-        ticker: matchedTicker,
-        title: article.title,
-        link: article.article_url,
-        pubDate: article.published_utc,
-        source: article.publisher.name,
-        blurb: article.description || undefined,
-        imageUrl: article.image_url || undefined,
+        ticker,
+        title: item.title ?? '',
+        link,
+        pubDate: item.pubDate ?? new Date().toISOString(),
+        source,
+        blurb: item.contentSnippet?.trim() || undefined,
+        imageUrl:
+          item.mediaContent?.$?.url ??
+          (item.enclosure?.type?.startsWith('image/') ? item.enclosure.url : undefined),
+        isPaywalled: isPaywalledDomain(source),
       }
     })
+  } catch {
+    return []
+  }
+}
 
-  return NextResponse.json({ articles })
+function extractDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
 }
 
 function titleKey(title: string): string {

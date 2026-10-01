@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Article } from '@/app/page'
 
@@ -30,6 +30,16 @@ function NewsCard({ article, index }: { article: Article; index: number }) {
   const [imgSrc, setImgSrc] = useState<string | null>(article.imageUrl ?? null)
   const [imgVisible, setImgVisible] = useState(false)
 
+  useEffect(() => {
+    if (imgSrc) return
+    let cancelled = false
+    fetch(`/api/og-image?url=${encodeURIComponent(article.link)}`)
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled && data.imageUrl) setImgSrc(data.imageUrl) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [article.link, imgSrc])
+
   return (
     <a
       href={article.link}
@@ -55,6 +65,12 @@ function NewsCard({ article, index }: { article: Article; index: number }) {
             onLoad={() => setImgVisible(true)}
             onError={() => { setImgSrc(null); setImgVisible(false) }}
           />
+        )}
+        {article.isPaywalled && (
+          <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 text-white rounded-full px-2 py-0.5">
+            <Lock size={9} />
+            <span className="text-[10px] font-medium">Paywalled</span>
+          </div>
         )}
       </div>
 
@@ -89,6 +105,8 @@ function NewsCard({ article, index }: { article: Article; index: number }) {
 }
 
 export default function NewsFeed({ articles, loading, tickers }: Props) {
+  const [showPaywalled, setShowPaywalled] = useState(true)
+
   if (tickers.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
@@ -119,19 +137,43 @@ export default function NewsFeed({ articles, loading, tickers }: Props) {
     )
   }
 
-  if (articles.length === 0) {
+  const displayed = showPaywalled ? articles : articles.filter((a) => !a.isPaywalled)
+
+  if (displayed.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground">
-        <p className="text-sm">No news found for your holdings.</p>
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
+        <p className="text-sm">No free articles found for your holdings.</p>
+        <button
+          onClick={() => setShowPaywalled(true)}
+          className="text-xs text-primary hover:underline"
+        >
+          Show paywalled articles
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {articles.map((article, i) => (
-        <NewsCard key={article.link} article={article} index={i} />
-      ))}
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <button
+          onClick={() => setShowPaywalled((v) => !v)}
+          className={cn(
+            'flex items-center gap-1.5 text-xs transition-colors',
+            showPaywalled
+              ? 'text-muted-foreground hover:text-foreground'
+              : 'text-primary hover:text-primary/80',
+          )}
+        >
+          <Lock size={11} />
+          {showPaywalled ? 'Hide paywalled' : 'Show paywalled'}
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {displayed.map((article, i) => (
+          <NewsCard key={article.link} article={article} index={i} />
+        ))}
+      </div>
     </div>
   )
 }

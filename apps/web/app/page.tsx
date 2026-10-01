@@ -12,6 +12,7 @@ export type Article = {
   source: string
   blurb?: string
   imageUrl?: string
+  isPaywalled?: boolean
 }
 
 const STORAGE_KEY = 'monolyth_holdings'
@@ -21,14 +22,6 @@ export default function Home() {
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(false)
   const [ready, setReady] = useState(false)
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) setTickers(JSON.parse(stored))
-    } catch {}
-    setReady(true)
-  }, [])
 
   const fetchNews = useCallback(async (t: string[]) => {
     setLoading(true)
@@ -53,9 +46,16 @@ export default function Home() {
     }
   }
 
+  // Load saved holdings and fetch their news once on mount
   useEffect(() => {
-    if (ready && tickers.length > 0) fetchNews(tickers)
-  }, [ready])
+    let stored: string[] = []
+    try {
+      stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
+    } catch {}
+    setTickers(stored)
+    setReady(true)
+    if (stored.length > 0) fetchNews(stored)
+  }, [fetchNews])
 
   if (!ready) return null
 
