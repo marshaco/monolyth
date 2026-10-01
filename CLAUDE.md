@@ -108,8 +108,18 @@ infra/
 # Start local infrastructure (Postgres, Redis, Nginx)
 docker compose -f infra/docker-compose.yml up -d
 
-# API (FastAPI)
-cd apps/api && uvicorn main:app --reload
+# Python deps (uv workspace: packages/db + apps/api) — run from repo root
+uv sync --all-packages
+
+# DB migrations (Alembic, reads DATABASE_URL; defaults to the docker-compose Postgres on :5433)
+cd packages/db && uv run alembic upgrade head
+cd packages/db && uv run alembic revision --autogenerate -m "describe change"
+
+# API (FastAPI) — routes live under /v1; docs at http://localhost:8000/docs
+cd apps/api && uv run uvicorn main:app --reload
+
+# Python tests (creates/drops a separate monolyth_test database) — run from repo root
+uv run pytest
 
 # Web (Next.js)
 cd apps/web && npm run dev
