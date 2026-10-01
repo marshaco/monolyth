@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Parser from 'rss-parser'
-import { feedDistribution, rankFeed } from '@/lib/feed-ranking'
+import { feedDistribution, outletKey, rankFeed } from '@/lib/feed-ranking'
 
 type FeedItem = {
   title?: string
@@ -20,6 +20,8 @@ type ArticleResult = {
   blurb?: string
   imageUrl?: string
   isPaywalled: boolean
+  // Distinct outlets that ran this story (it and its de-duplicated copies); a significance signal
+  coverage?: number
 }
 
 const parser = new Parser<object, FeedItem>({
@@ -84,7 +86,8 @@ export async function GET(req: NextRequest) {
   )
 
   const seenLinks = new Set<string>()
-  const seenTitleKeys = new Set<string>()
+  // Outlets seen per title key, so dropped duplicates still count toward the kept copy's coverage
+  const outletsByTitleKey = new Map<string, Set<string>>()
 
   const deduped = results
     .filter((r): r is PromiseFulfilledResult<ArticleResult[]> => r.status === 'fulfilled')
@@ -94,10 +97,16 @@ export async function GET(req: NextRequest) {
       if (!a.link || seenLinks.has(a.link)) return false
       seenLinks.add(a.link)
       const key = titleKey(a.title)
-      if (key && seenTitleKeys.has(key)) return false
-      if (key) seenTitleKeys.add(key)
+      if (!key) return true
+      const outlets = outletsByTitleKey.get(key)
+      if (outlets) {
+        outlets.add(outletKey(a.source))
+        return false
+      }
+      outletsByTitleKey.set(key, new Set([outletKey(a.source)]))
       return true
     })
+    .map((a) => ({ ...a, coverage: outletsByTitleKey.get(titleKey(a.title))?.size ?? 1 }))
 
   const articles = rankFeed(deduped)
   const distribution = feedDistribution(articles)
