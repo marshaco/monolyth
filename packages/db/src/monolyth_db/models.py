@@ -2,7 +2,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+from pgvector.sqlalchemy import Vector
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -77,3 +78,32 @@ class Filing(TimestampMixin, Base):
     summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Set when a filing can't be summarised (e.g. over the size limit), so it isn't retried every run
     summary_error: Mapped[str | None] = mapped_column(String(255))
+
+
+# OpenAI text-embedding-3-small (CLAUDE.md); changing model or dimensions needs a migration and re-embed
+EMBEDDING_DIMENSIONS = 1536
+
+
+class FilingChunk(Base):
+    """A passage of a filing with its embedding, for semantic search across holdings' filings
+    ("what have my holdings said about margin pressure?")."""
+
+    __tablename__ = "filing_chunks"
+    __table_args__ = (
+        UniqueConstraint("filing_id", "chunk_index"),
+        Index(
+            "ix_filing_chunks_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    filing_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("filings.id", ondelete="CASCADE"), index=True)
+    chunk_index: Mapped[int]
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    filing: Mapped[Filing] = relationship()
